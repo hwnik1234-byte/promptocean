@@ -144,6 +144,14 @@ async function renderPrompts(filterData = null) {
             btn.addEventListener('click', () => toggleFavorite(parseInt(btn.getAttribute('data-id')), btn));
         });
 
+        document.querySelectorAll('.share-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const title = btn.getAttribute('data-title');
+                const text = btn.getAttribute('data-text');
+                sharePrompt(title, text);
+            });
+        });
+
         document.querySelectorAll('.rating-stars i').forEach(star => {
             star.addEventListener('click', (e) => {
                 const container = e.target.closest('.rating-stars');
@@ -153,6 +161,21 @@ async function renderPrompts(filterData = null) {
             });
         });
     }, 600); // Shimmer for 600ms
+}
+
+function sharePrompt(title, text) {
+    if (navigator.share) {
+        navigator.share({
+            title: title,
+            text: text,
+            url: window.location.href
+        }).catch(() => { });
+    } else {
+        // Fallback: Copy to clipboard
+        navigator.clipboard.writeText(`${title}: ${text}`).then(() => {
+            alert('Share link copied to clipboard!');
+        });
+    }
 }
 
 function showSkeletons() {
@@ -359,26 +382,53 @@ async function handleForgotPassword() {
 async function handleLogout() {
     if (!supabaseClient) return;
     await supabaseClient.auth.signOut();
+    favorites = [];
+    localStorage.removeItem('favorites');
     updateAuthUI(null);
+    renderPrompts(allPrompts); // Reset to default view
 }
 
 function updateAuthUI(user) {
     const loginHeaderBtn = document.getElementById('login-btn');
     const signupHeaderBtn = document.getElementById('signup-btn');
+    const mobileLoginBtn = document.getElementById('mobile-login-btn');
+    const mobileSignupBtn = document.getElementById('mobile-signup-btn');
 
     if (user) {
-        // Show the user's name if available, fallback to 'Profile'
         const displayName = user.user_metadata?.full_name || 'Profile';
+        
+        // Update Header
         if (loginHeaderBtn) loginHeaderBtn.textContent = displayName;
         if (signupHeaderBtn) {
             signupHeaderBtn.textContent = 'Logout';
             signupHeaderBtn.onclick = handleLogout;
         }
+
+        // Update Mobile Menu
+        if (mobileLoginBtn) {
+            mobileLoginBtn.textContent = displayName;
+            mobileLoginBtn.onclick = null; // Maybe link to profile later
+        }
+        if (mobileSignupBtn) {
+            mobileSignupBtn.textContent = 'Logout';
+            mobileSignupBtn.onclick = handleLogout;
+        }
     } else {
+        // Reset Header
         if (loginHeaderBtn) loginHeaderBtn.textContent = 'Login';
         if (signupHeaderBtn) {
             signupHeaderBtn.textContent = 'Sign Up';
             signupHeaderBtn.onclick = () => openModal('signup');
+        }
+
+        // Reset Mobile Menu
+        if (mobileLoginBtn) {
+            mobileLoginBtn.textContent = 'Login';
+            mobileLoginBtn.onclick = () => openModal('login');
+        }
+        if (mobileSignupBtn) {
+            mobileSignupBtn.textContent = 'Sign Up';
+            mobileSignupBtn.onclick = () => openModal('signup');
         }
     }
 }
@@ -465,6 +515,9 @@ document.addEventListener('DOMContentLoaded', () => {
         favFilterBtn.classList.add('active');
         const favPrompts = allPrompts.filter(p => favorites.includes(p.id));
         renderPrompts(favPrompts);
+        
+        // Scroll to trending section to show results
+        document.getElementById('trending')?.scrollIntoView({ behavior: 'smooth' });
     });
 
     // Search Suggestions Logic
