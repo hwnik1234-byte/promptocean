@@ -1190,7 +1190,8 @@ body:not(.light-theme) .sort-dropdown {
 .filter-btn.active {
     background: var(--gradient-hero);
     color: white;
-    border-color: transparent box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
+    border-color: transparent;
+    box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
 }
 
 /* Base Animations (AOS-like) */
@@ -1964,4 +1965,103 @@ body.light-theme .rating-stars {
     .header-search-container.active {
         width: 150px;
     }
+}
+
+/* Result Card styling */
+.result-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 24px;
+    margin-top: 10px;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.result-header h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--accent-primary);
+    margin: 0;
+}
+
+.result-text {
+    font-size: 1.1rem;
+    line-height: 1.7;
+    color: var(--text-main);
+    font-style: italic;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    border-left: 4px solid var(--accent-primary);
+}
+
+.result-footer {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* History Items */
+.history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    transition: all 0.3s ease;
+}
+
+.history-item:hover {
+    background: rgba(0, 245, 255, 0.05);
+    border-color: var(--accent-primary);
+    transform: translateX(5px);
+}
+
+.history-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.history-item-info strong {
+    font-size: 0.9rem;
+    color: var(--text-main);
+}
+
+.history-item-info span {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Loader */
+.loader {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }

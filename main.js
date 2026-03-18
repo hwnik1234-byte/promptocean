@@ -580,6 +580,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     playgroundInput?.addEventListener('input', updatePlaygroundVariables);
 
+    function renderPlaygroundHistory() {
+        const historyList = document.getElementById('history-list');
+        if (!historyList) return;
+        
+        const history = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
+        if (history.length === 0) {
+            historyList.innerHTML = '<p class="placeholder-text">No history yet.</p>';
+            return;
+        }
+
+        historyList.innerHTML = history.map((item, index) => `
+            <div class="history-item" data-index="${index}">
+                <div class="history-item-info">
+                    <strong>${item.topic.substring(0, 30)}${item.topic.length > 30 ? '...' : ''}</strong>
+                    <span>${item.tone} • ${item.format}</span>
+                </div>
+                <button class="icon-btn small-btn copy-btn" data-prompt="${item.topic}"><i data-lucide="copy"></i></button>
+            </div>
+        `).join('');
+        if (window.lucide) lucide.createIcons();
+    }
+
     playgroundBtn?.addEventListener('click', () => {
         let topic = playgroundInput.value.trim() || (playgroundPromptDisplay ? playgroundPromptDisplay.textContent : '');
         if (!topic) return alert('Please enter a topic!');
@@ -598,25 +620,50 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        playgroundBtn.innerHTML = 'Generating...';
+        playgroundBtn.innerHTML = '<i class="loader"></i> Generating...';
         playgroundBtn.disabled = true;
+
         setTimeout(() => {
-            const result = `<h3>Generated Result (${tone} - ${format}):</h3><p>Using your custom inputs and <b>${tone}</b> tone, we've optimized the prompt for: <strong>${topic}</strong>. <br><br>Artificial Intelligence is no longer a concept of the far-off future; it is actively reshaping how we approach this in a <b>${format}</b> structure...</p>`;
-            playgroundResult.innerHTML = result;
+            const resultHtml = `
+                <div class="result-card">
+                    <div class="result-header">
+                        <h4><i data-lucide="sparkles"></i> Optimized Prompt</h4>
+                        <span class="badge badge-outline">${tone}</span>
+                    </div>
+                    <div class="result-text">
+                        "${topic}. Please write this in a ${tone.toLowerCase()} tone and present the information as a ${format.toLowerCase()}."
+                    </div>
+                    <div class="result-footer">
+                        <button class="btn btn-primary btn-sm copy-btn" data-prompt="${topic}">
+                            <i data-lucide="copy"></i> Copy Optimized Prompt
+                        </button>
+                    </div>
+                </div>
+            `;
+            playgroundResult.innerHTML = resultHtml;
             playgroundBtn.innerHTML = '⚡ Generate Result';
             playgroundBtn.disabled = false;
 
+            // Save to history
+            const history = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
+            history.unshift({ topic, tone, format, date: new Date().toISOString() });
+            localStorage.setItem('playgroundHistory', JSON.stringify(history.slice(0, 5))); // Keep last 5
+            renderPlaygroundHistory();
+
             if (window.confetti) {
                 confetti({
-                    particleCount: 50,
-                    spread: 100,
-                    origin: { x: 0.5, y: 0.5 }
+                    particleCount: 40,
+                    spread: 70,
+                    origin: { y: 0.8 }
                 });
             }
-        }, 1500);
+            if (window.lucide) lucide.createIcons();
+        }, 1200);
     });
 
-    // Collections Sidebar Logic
+    // Initial Render Actions
+    renderCollections();
+    renderPlaygroundHistory();
     const collectionsSidebar = document.getElementById('collections-sidebar');
     const openCollectionsBtn = document.createElement('button');
     openCollectionsBtn.className = 'icon-btn';
@@ -634,18 +681,6 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('collections', JSON.stringify(collections));
             renderCollections();
         }
-    });
-
-    // Initial Collections Render
-    renderCollections();
-
-    // Mobile Menu Toggle
-    const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-    const navLinks = document.querySelector('.nav-links');
-    mobileMenuBtn?.addEventListener('click', () => {
-        const isActive = navLinks?.classList.toggle('active');
-        mobileMenuBtn.classList.toggle('active');
-        document.body.style.overflow = isActive ? 'hidden' : 'auto';
     });
 
     // Initial Render
