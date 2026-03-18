@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PromptOcean | Premium AI Prompts Marketplace</title>
+    <meta name="description" content="Discover, copy, and test premium AI prompts for ChatGPT, Midjourney, Claude, and more. Elevate your AI interactions with our curated library.">
+    <meta property="og:title" content="PromptOcean | Discover Premium AI Prompts">
+    <meta property="og:description" content="The ultimate repository for high-quality AI prompts. Copy, test, and share with ease.">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <!-- Google Fonts: Outfit for Headings, Inter for Body -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap"
+        rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="dark-theme">
+    <div class="ocean-mesh"></div>
+    <!-- 1. Header / Navigation Bar -->
+    <header class="main-header">
+        <nav class="container">
+            <div class="logo">
+                <i data-lucide="droplets" class="logo-icon"></i>
+                <span>PromptOcean</span>
+</div>
+            <ul class="nav-links">
+                <div class="mobile-nav-header">
+                    <div class="logo">
+                        <i data-lucide="droplets" class="logo-icon"></i>
+                        <span>PromptOcean</span>
+                    </div>
+                </div>
+                <li><a href="#" class="active">Home</a></li>
+                <li><a href="#categories">Categories</a></li>
+                <li><a href="#trending">Popular</a></li>
+                <li><a href="#submit">Submit Prompt</a></li>
+                <div class="mobile-only-btns">
+                    <button class="btn btn-outline" id="mobile-login-btn">Login</button>
+                    <button class="btn btn-primary" id="mobile-signup-btn">Sign Up</button>
+                </div>
+                <div class="mobile-nav-footer">
+                    <div class="social-links">
+                        <a href="#" aria-label="Twitter"><i data-lucide="twitter"></i></a>
+                        <a href="#" aria-label="Discord"><i data-lucide="message-square"></i></a>
+                        <a href="#" aria-label="GitHub"><i data-lucide="github"></i></a>
+                    </div>
+                </div>
+            </ul>
+            <div class="header-actions">
+                <div class="header-search-container" id="header-search-container">
+                    <button class="icon-btn" id="header-search-toggle" aria-label="Search"><i
+                            data-lucide="search"></i></button>
+                    <input type="text" placeholder="Search prompts..." id="header-search-input"
+                        class="header-search-input" autocomplete="off">
+                    <div class="search-suggestions" id="header-search-suggestions"></div>
+                </div>
+                <button class="icon-btn theme-toggle" id="theme-toggle" aria-label="Toggle Theme">
+                    <i data-lucide="moon" class="moon-icon"></i>
+                    <i data-lucide="sun" class="sun-icon"></i>
+                </button>
+                <button class="btn btn-outline" id="login-btn">Login</button>
+                <button class="btn btn-primary" id="signup-btn">Sign Up</button>
+            </div>
+            <button class="mobile-menu-toggle" id="mobile-menu-btn" aria-label="Toggle Menu" style="display: none;">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </nav>
+    </header>
+
+    <main>
+        <!-- 2. Hero Section -->
+        <section class="hero" data-aos="fade-up">
+            <div class="container hero-content">
+                <h1 class="hero-title">Discover the Best AI Prompts for <span>Anything</span></h1>
+                <p class="hero-subtitle">Find, copy, and use powerful prompts for ChatGPT, coding, marketing, and more.
+                </p>
+
+                <div class="hero-search-wrapper">
+                    <div class="search-bar">
+                        <i data-lucide="search"></i>
+                        <input type="text" placeholder="Search prompts... (e.g. YouTube script, blog writing)"
+                            id="main-search" autocomplete="off">
+                        <button class="btn btn-primary" id="hero-search-btn">Search</button>
+                        <div class="search-suggestions" id="main-search-suggestions"></div>
+                    </div>
+                </div>
+
+                <div class="hero-btns">
+                    <button class="btn btn-secondary"><i data-lucide="grid"></i> Browse Categories</button>
+                </div>
+            </div>
+            <div class="hero-bg-glow"></div>
+            <div class="hero-wave">
+                <svg data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 120" preserveAspectRatio="none">
+                    <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z" class="shape-fill"></path>
+                </svg>
+            </div>
+        </section>
+
+        <!-- 2.5 Filter Bar -->
+        <div class="filter-bar-container">
+            <div class="container">
+                <div class="filter-bar-inner">
+                    <div class="filter-bar-wrapper">
+                        <div class="filter-bar" id="category-filters">
+                            <button class="filter-btn active" data-category="all">All Prompts</button>
+                            <button class="filter-btn" data-category="ChatGPT">ChatGPT</button>
+                            <button class="filter-btn" data-category="Coding">Coding</button>
+                            <button class="filter-btn" data-category="Design">Design</button>
+                            <button class="filter-btn" data-category="Marketing">Marketing</button>
+                            <button class="filter-btn" data-category="Content Creation">Content Creation</button>
+                            <button class="filter-btn" data-category="Brainstorming">Brainstorming</button>
+                            <button class="filter-btn favorite-filter" id="fav-filter-btn"><i data-lucide="heart"></i> My Favorites</button>
+                        </div>
+                    </div>
+                    <div class="filter-actions">
+                        <select id="sort-select" class="sort-dropdown">
+                            <option value="trending">Trending</option>
+                            <option value="recent">Newest First</option>
+                            <option value="saves">Most Saved</option>
+                            <option value="rating">Highest Rated</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Categories Section -->
+        <section id="categories" class="categories container" data-aos="fade-up">
+            <h2 class="section-title">Explore Categories</h2>
+            <div class="category-grid">
+                <div class="category-card">
+                    <i data-lucide="brain"></i>
+                    <h3>ChatGPT Prompts</h3>
+                </div>
+                <div class="category-card">
+                    <i data-lucide="code"></i>
+                    <h3>Coding Prompts</h3>
+                </div>
+                <div class="category-card">
+                    <i data-lucide="palette"></i>
+                    <h3>Design Prompts</h3>
+                </div>
+                <div class="category-card">
+                    <i data-lucide="trending-up"></i>
+                    <h3>Marketing Prompts</h3>
+                </div>
+                <div class="category-card">
+                    <i data-lucide="clapperboard"></i>
+                    <h3>Content Creation</h3>
+                </div>
+                <div class="category-card">
+                    <i data-lucide="book-open"></i>
+                    <h3>Study Prompts</h3>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. Trending Prompts Section -->
+        <section id="trending" class="trending container" data-aos="fade-up">
+            <div class="section-header">
+                <h2 class="section-title">Trending Prompts 🔥</h2>
+                <div class="header-btns">
+                    <button class="btn btn-outline btn-sm" id="export-json-btn"><i data-lucide="download"></i> Export
+                        JSON</button>
+                    <a href="#" class="view-all">View All</a>
+                </div>
+            </div>
+            <div class="prompt-grid" id="trending-grid">
+                <!-- Prompt cards will be injected by JS -->
+            </div>
+        </section>
+
+        <!-- 5. Prompt of the Day -->
+        <section class="potd-section container" data-aos="fade-up">
+            <div class="potd-card">
+                <div class="potd-badge-container">
+                    <div class="potd-label">⭐ Prompt of the Day</div>
+                    <button class="icon-btn share-btn" data-title="Startup Idea Generator"
+                        data-text="Check out this Startup Idea Generator prompt on PromptHive!"><i
+                            data-lucide="share-2"></i></button>
+                </div>
+                <div class="potd-content">
+                    <div class="potd-info">
+                        <h3 class="potd-title">Startup Idea Generator</h3>
+                        <p class="potd-description">Generate 5 startup ideas in a specific industry. Include problem,
+                            solution, and target audience.</p>
+                        <div class="potd-actions">
+                            <button class="btn btn-primary"><i data-lucide="copy"></i> Copy Prompt</button>
+                            <button class="btn btn-outline">Test Prompt</button>
+                        </div>
+                    </div>
+                    <div class="potd-preview">
+                        <code>Generate 5 startup ideas in the [industry] industry. Include problem, solution, and target audience.</code>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. Prompt Playground -->
+        <section class="playground container" data-aos="fade-up">
+            <h2 class="section-title">Prompt Playground ⚡</h2>
+            <p class="section-subtitle">Test prompts instantly and see how AI responds.</p>
+            <div class="playground-wrapper">
+                <div class="playground-input">
+                    <div class="input-header">
+                        <span>Prompt</span>
+                        <span class="badge">Interactive</span>
+                    </div>
+                    <div class="playground-settings">
+                        <select class="setting-select" id="playground-tone">
+                            <option value="Professional">💼 Professional Tone</option>
+                            <option value="Creative">🎨 Creative Tone</option>
+                            <option value="Simplified">👶 Simplified Tone</option>
+                            <option value="Humorous">🤣 Humorous Tone</option>
+                        </select>
+                        <select class="setting-select" id="playground-format">
+                            <option value="Paragraph">📝 Paragraph Format</option>
+                            <option value="Bulleted List">📋 Bulleted List</option>
+                            <option value="Step-by-step">🔢 Step-by-step</option>
+                        </select>
+                    </div>
+                    <p class="playground-prompt-text">Write a blog introduction about artificial intelligence.</p>
+                    <textarea placeholder="Enter topic here (e.g. Future of AI in Medicine)..."
+                        id="playground-input-field"></textarea>
+                    <button class="btn btn-primary btn-full" id="playground-generate">⚡ Generate Result</button>
+                </div>
+                <div class="playground-output">
+                    <div class="output-header">Result</div>
+                    <div class="output-content" id="playground-result">
+                        <span class="placeholder-text">The result will appear here...</span>
+                    </div>
+                    <div class="playground-history" id="playground-history">
+                        <h4>Recent Generations</h4>
+                        <div class="history-list" id="history-list">
+                            <!-- History items injected here -->
+                            <p class="placeholder-text">No history yet.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 7. Latest Prompts -->
+        <section class="latest container" data-aos="fade-up">
+            <div class="section-header">
+                <h2 class="section-title">Latest Prompts</h2>
+                <a href="#" class="view-all">View Recent</a>
+            </div>
+            <div class="prompt-grid" id="latest-grid">
+                <!-- Prompt cards will be injected by JS -->
+            </div>
+        </section>
+
+        <!-- 8. Submit Your Prompt -->
+        <section id="submit" class="submit-section">
+            <div class="container">
+                <div class="submit-card">
+                    <h2>Share your best AI prompt with the community</h2>
+                    <p>Help others discover the power of AI by sharing your most effective prompts.</p>
+                    <button class="btn btn-white" id="open-submit-modal">➕ Submit Prompt</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 9. Newsletter -->
+        <section class="newsletter container" data-aos="fade-up">
+            <div class="newsletter-card">
+                <div class="newsletter-icon">
+                    <i data-lucide="mail"></i>
+                </div>
+                <h3>Get the best AI prompts every week</h3>
+                <p>Join 10,000+ users and stay updated with the latest AI prompt engineering techniques.</p>
+                <form class="newsletter-form">
+                    <input type="email" placeholder="Enter your email" required>
+                    <button type="submit" class="btn btn-primary">Subscribe</button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <!-- 10. Footer -->
+    <!-- Modal Overlays -->
+    <div class="modal-overlay" id="modal-overlay">
+        <!-- Login Modal -->
+        <div class="modal" id="login-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>Welcome Back</h2>
+                <p>Login to your account to save your favorite prompts.</p>
+            </div>
+            <form class="modal-form">
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" placeholder="name@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" placeholder="••••••••" required>
+                    <a href="#" id="forgot-password-link" style="display: block; text-align: right; font-size: 0.85rem; color: var(--accent-primary); margin-top: 5px; text-decoration: none;">Forgot Password?</a>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Login</button>
+            </form>
+            <div class="modal-footer">
+                <p>Don't have an account? <a href="#" id="switch-to-signup">Sign Up</a></p>
+            </div>
+        </div>
+
+        <!-- Signup Modal -->
+        <div class="modal" id="signup-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>Create Account</h2>
+                <p>Join the community and start contributing prompts.</p>
+            </div>
+            <form class="modal-form">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" placeholder="John Doe" required>
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" placeholder="name@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Create Account</button>
+            </form>
+            <div class="modal-footer">
+                <p>Already have an account? <a href="#" id="switch-to-login">Login</a></p>
+            </div>
+        </div>
+
+        <!-- Submit Prompt Modal -->
+        <div class="modal" id="submit-prompt-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>Submit New Prompt</h2>
+                <p>Add a powerful prompt to our curated library.</p>
+            </div>
+            <form class="modal-form" id="new-prompt-form">
+                <div class="form-group">
+                    <label>Prompt Title</label>
+                    <input type="text" id="new-prompt-title" placeholder="e.g. SEO Master" required>
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="new-prompt-category" required>
+                        <option value="ChatGPT">ChatGPT</option>
+                        <option value="Coding">Coding</option>
+                        <option value="Design">Design</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Content Creation">Content Creation</option>
+                        <option value="Brainstorming">Brainstorming</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Prompt Text</label>
+                    <textarea id="new-prompt-text" placeholder="Paste your prompt here..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">🚀 Submit Prompt</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Collections Sidebar -->
+    <aside class="collections-sidebar" id="collections-sidebar">
+        <div class="sidebar-header">
+            <h3>My Collections</h3>
+            <button class="icon-btn" id="close-collections"><i data-lucide="x"></i></button>
+        </div>
+        <div class="collections-list" id="collections-list">
+            <div class="collection-item">
+                <i data-lucide="folder"></i>
+                <span>General</span>
+            </div>
+            <!-- Dynamic collections here -->
+        </div>
+        <button class="btn btn-outline btn-full" style="margin-top: 24px;" id="add-collection-btn">
+            <i data-lucide="plus"></i> Create Folder
+        </button>
+    </aside>
+
+    <footer class="main-footer">
+        <div class="container footer-grid">
+            <div class="footer-brand">
+                <div class="logo">
+                    <i data-lucide="droplets" class="logo-icon"></i>
+                    <span>PromptOcean</span>
+                </div>
+                <p>The ultimate repository for high-quality AI prompts. Copy, test, and share with ease.</p>
+                <div class="social-links">
+                    <a href="#"><i data-lucide="twitter"></i></a>
+                    <a href="#"><i data-lucide="facebook"></i></a>
+                    <a href="#"><i data-lucide="github"></i></a>
+                </div>
+            </div>
+            <div class="footer-links">
+                <h4>Product</h4>
+                <ul>
+                    <li><a href="#categories">Categories</a></li>
+                    <li><a href="#trending">Popular Prompts</a></li>
+                    <li><a href="#">Prompt Playground</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>Community</h4>
+                <ul>
+                    <li><a href="#submit">Submit Prompt</a></li>
+                    <li><a href="#">Discord</a></li>
+                    <li><a href="#">Twitter</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>Company</h4>
+                <ul>
+                    <li><a href="#">About</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Contact</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="container footer-bottom">
+            <p>&copy; 2026 PromptOcean. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="main.js"></script>
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+    </script>
+</body>
+
+</html>
