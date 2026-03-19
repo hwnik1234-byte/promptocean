@@ -1,18 +1,21 @@
 // DOM Elements
 let trendingGrid, latestGrid, searchInput, headerSearchInput, headerSearchToggle, headerSearchContainer;
 let playgroundInput, playgroundBtn, playgroundResult, heroSearchBtn, themeToggle;
-let modalOverlay, loginModal, signupModal, loginBtn, signupBtn, closeButtons, switchToSignup, switchToLogin;
+let modalOverlay, loginModal, signupModal, uploadModal, loginBtn, signupBtn, sellPromptBtn, closeButtons, switchToSignup, switchToLogin;
 let categoryFilters, filterButtons, favFilterBtn;
 
-// --- SUPABASE CONFIGURATION ---
-// IMPORTANT: Replace these with your actual keys from Supabase Dashboard
+// --- SUPABASE & RAZORPAY CONFIGURATION ---
 const SUPABASE_URL = 'https://kzcoqpmmytqkipntrerc.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_y6M0kkVki3wQXBjIoOYR0w_GVCVuU7K';
+const RAZORPAY_KEY_ID = 'rzp_test_YourKeyHere'; // Replace with actual Razorpay Key ID
 
 let supabaseClient = null;
 if (SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
+
+let userSubscription = { plan_name: 'Free', status: 'inactive' };
+let userPurchases = []; // Array of prompt IDs purchased
 // ------------------------------
 
 // Data for Prompts
@@ -27,8 +30,8 @@ const trendingPrompts = [
 
 const latestPrompts = [
     { id: 7, title: "Email Marketing Sequence", preview: "Write a 3-part email sequence for a product launch in the [industry] niche.", category: "Marketing", saves: 120, rating: 4.4 },
-    { id: 8, title: "Python Unit Test Bot", preview: "Generate comprehensive unit tests for the following Python function: [code].", category: "Coding", saves: 45, rating: 4.9 },
-    { id: 9, title: "Interior Design Moodboard", preview: "Describe an interior design style for a [room type] with [style name] elements.", category: "Design", saves: 88, rating: 4.7 }
+    { id: 8, title: "Python Unit Test Bot", preview: "Generate comprehensive unit tests for the following Python function: [code].", category: "Coding", saves: 45, rating: 4.9, is_premium: true },
+    { id: 9, title: "Interior Design Moodboard", preview: "Describe an interior design style for a [room type] with [style name] elements.", category: "Design", saves: 88, rating: 4.7, is_premium: true }
 ];
 
 let allPrompts = [...trendingPrompts, ...latestPrompts];
@@ -52,12 +55,23 @@ function renderCollections() {
 // Function to create prompt card
 function createPromptCard(prompt) {
     const isFav = favorites.includes(prompt.id);
+    const hasPurchased = userPurchases.includes(prompt.id);
+    const isAuthor = false; // We can check this later if user is logged in
+    
+    // Locked if: Premium AND (Not Pro AND Not Purchased AND Not Author)
+    const isLocked = prompt.is_premium && 
+                     userSubscription.plan_name !== 'Pro' && 
+                     !hasPurchased;
+
     const card = document.createElement('div');
-    card.className = 'prompt-card';
+    card.className = `prompt-card ${prompt.is_premium ? 'premium' : ''}`;
     card.setAttribute('data-id', prompt.id);
     card.innerHTML = `
         <div class="prompt-card-header">
-            <span class="prompt-tag">${prompt.category}</span>
+            <div class="tag-group">
+                <span class="prompt-tag">${prompt.category}</span>
+                ${prompt.is_premium ? '<span class="pro-badge">PRO</span>' : ''}
+            </div>
             <div class="card-actions">
                 <button class="icon-btn share-btn" data-title="${prompt.title}" data-text="Copy this prompt: ${prompt.preview}"><i data-lucide="share-2"></i></button>
                 <button class="icon-btn heart-btn ${isFav ? 'active' : ''}" data-id="${prompt.id}"><i data-lucide="heart"></i></button>
@@ -66,6 +80,16 @@ function createPromptCard(prompt) {
         <h3>${prompt.title}</h3>
         <div class="prompt-preview">
             <p>${prompt.preview}</p>
+            ${isLocked ? `
+                <div class="premium-overlay">
+                    <i data-lucide="lock"></i>
+                    <span>Premium Prompt (₹${prompt.price || 99})</span>
+                    <div class="overlay-btns">
+                        <button class="btn btn-primary btn-sm" onclick="document.getElementById('pricing').scrollIntoView({behavior:'smooth'})">Get Pro</button>
+                        <button class="btn btn-outline btn-sm buy-now-btn" data-id="${prompt.id}" data-price="${prompt.price || 99}">Buy This</button>
+                    </div>
+                </div>
+            ` : ''}
         </div>
         <div class="prompt-card-footer">
             <div class="prompt-stats">
@@ -75,8 +99,8 @@ function createPromptCard(prompt) {
                 </div>
                 <span><i data-lucide="save"></i> ${prompt.saves || 0}</span>
             </div>
-            <button class="btn btn-outline btn-sm copy-btn" data-prompt="${prompt.preview}">
-                <i data-lucide="copy"></i> Copy
+            <button class="btn btn-outline btn-sm copy-btn" data-prompt="${prompt.preview}" ${isLocked ? 'disabled' : ''}>
+                <i data-lucide="copy"></i> ${isLocked ? 'Locked' : 'Copy'}
             </button>
         </div>
     `;
@@ -158,6 +182,14 @@ async function renderPrompts(filterData = null) {
                 const id = parseInt(container.getAttribute('data-id'));
                 const rating = parseInt(star.getAttribute('data-star'));
                 updateRating(id, rating, container);
+            });
+        });
+
+        document.querySelectorAll('.buy-now-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-id');
+                const price = parseFloat(btn.getAttribute('data-price'));
+                initiatePromptPurchase(id, price);
             });
         });
     }, 600); // Shimmer for 600ms
@@ -250,6 +282,110 @@ async function fetchFavorites() {
     }
 }
 
+async function fetchPurchases() {
+    if (!supabaseClient) return;
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (user) {
+        const { data, error } = await supabaseClient.from('purchases').select('prompt_id').eq('user_id', user.id);
+        if (!error && data) {
+            userPurchases = data.map(p => p.prompt_id);
+            renderPrompts();
+        }
+    }
+}
+async function fetchSubscription() {
+    if (!supabaseClient) return;
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (user) {
+        const { data, error } = await supabaseClient
+            .from('subscriptions')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .maybeSingle();
+
+        if (data) {
+            userSubscription = data;
+        } else {
+            userSubscription = { plan_name: 'Free', status: 'inactive' };
+        }
+        renderPrompts();
+    }
+}
+
+function initiateRazorpayPayment() {
+    if (!supabaseClient) return alert('Please log in first.');
+    const options = {
+        key: RAZORPAY_KEY_ID,
+        amount: 49900,
+        currency: 'INR',
+        name: 'PromptOcean Pro',
+        description: 'Monthly Subscription to Pro Ocean Plan',
+        handler: async function (response) {
+            alert('Payment Successful! Transaction ID: ' + response.razorpay_payment_id);
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (user) {
+                await supabaseClient.from('subscriptions').upsert({
+                    user_id: user.id,
+                    plan_name: 'Pro',
+                    status: 'active',
+                    razorpay_subscription_id: 'sub_mock_' + Date.now(),
+                    current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+                });
+                fetchSubscription();
+            }
+        },
+        theme: { color: '#7c3aed' }
+    };
+    const rzp = new Razorpay(options);
+    rzp.open();
+}
+
+async function handlePromptUpload(e) {
+    e.preventDefault();
+    if (!supabaseClient) return alert('Supabase not configured');
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) return openModal('login');
+
+    const title = document.getElementById('up-title').value;
+    const category = document.getElementById('up-category').value;
+    const description = document.getElementById('up-description').value;
+    const promptText = document.getElementById('up-text').value;
+    const price = document.getElementById('up-price').value;
+    const isPremium = document.getElementById('up-premium').checked;
+
+    const { error } = await supabaseClient.from('prompts').insert({
+        title, category, description, prompt_text: promptText,
+        user_id: user.id, is_premium: isPremium, price: parseFloat(price), is_public: true
+    });
+
+    if (error) alert('Error: ' + error.message);
+    else { alert('Listed successfully! 🚀'); closeModal(); renderPrompts(); }
+}
+
+function initiatePromptPurchase(promptId, price) {
+    if (!supabaseClient) return alert('Please log in first.');
+    const options = {
+        key: RAZORPAY_KEY_ID,
+        amount: Math.round(price * 100),
+        currency: 'INR',
+        name: 'PromptOcean Marketplace',
+        description: `Purchase prompt #${promptId}`,
+        handler: async function (response) {
+            alert('Purchase Successful!');
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (user) {
+                await supabaseClient.from('purchases').insert({
+                    user_id: user.id, prompt_id: promptId, amount: price, status: 'completed'
+                });
+                renderPrompts();
+            }
+        },
+        theme: { color: '#7c3aed' }
+    };
+    new Razorpay(options).open();
+}
+
 // Copy Logic
 function copyToClipboard(text, btn) {
     navigator.clipboard.writeText(text).then(() => {
@@ -309,12 +445,15 @@ function openModal(type) {
     modalOverlay.classList.add('active');
     loginModal?.classList.remove('active');
     signupModal?.classList.remove('active');
+    uploadModal?.classList.remove('active');
     document.getElementById('submit-prompt-modal')?.classList.remove('active');
 
     if (type === 'login') {
         loginModal?.classList.add('active');
     } else if (type === 'signup') {
         signupModal?.classList.add('active');
+    } else if (type === 'upload') {
+        uploadModal?.classList.add('active');
     } else if (type === 'submit') {
         document.getElementById('submit-prompt-modal')?.classList.add('active');
     }
@@ -324,6 +463,7 @@ function closeModal() {
     modalOverlay?.classList.remove('active');
     loginModal?.classList.remove('active');
     signupModal?.classList.remove('active');
+    uploadModal?.classList.remove('active');
     document.getElementById('submit-prompt-modal')?.classList.remove('active');
 }
 
@@ -334,7 +474,10 @@ async function handleSignUp(email, password, fullName) {
         email,
         password,
         options: {
-            data: { full_name: fullName }
+            data: { 
+                full_name: fullName,
+                user_name: fullName.toLowerCase().replace(/\s+/g, '_') + Math.floor(Math.random() * 1000)
+            }
         }
     });
 
@@ -343,6 +486,20 @@ async function handleSignUp(email, password, fullName) {
     } else {
         alert('Verification email sent! Please check your inbox.');
         closeModal();
+    }
+}
+
+async function signInWithGoogle() {
+    if (!supabaseClient) return alert('Supabase not initialized.');
+    const { data, error } = await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+            redirectTo: window.location.origin
+        }
+    });
+
+    if (error) {
+        alert('Error logging in with Google: ' + error.message);
     }
 }
 
@@ -438,7 +595,11 @@ async function checkUserSession() {
     if (!supabaseClient) return;
     const { data: { user } } = await supabaseClient.auth.getUser();
     updateAuthUI(user);
-    if (user) fetchFavorites();
+    if (user) {
+        fetchFavorites();
+        fetchSubscription();
+        fetchPurchases();
+    }
 }
 // -----------------------------
 
@@ -460,8 +621,10 @@ document.addEventListener('DOMContentLoaded', () => {
     modalOverlay = document.getElementById('modal-overlay');
     loginModal = document.getElementById('login-modal');
     signupModal = document.getElementById('signup-modal');
+    uploadModal = document.getElementById('upload-modal');
     loginBtn = document.getElementById('login-btn');
     signupBtn = document.getElementById('signup-btn');
+    sellPromptBtn = document.getElementById('sell-prompt-btn');
     closeButtons = document.querySelectorAll('.modal-close');
     switchToSignup = document.getElementById('switch-to-signup');
     switchToLogin = document.getElementById('switch-to-login');
@@ -796,7 +959,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Login Form Submit
-    document.querySelector('#login-modal .modal-form')?.addEventListener('submit', (e) => {
+    document.getElementById('login-form')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const email = e.target.querySelector('input[type="email"]').value;
         const password = e.target.querySelector('input[type="password"]').value;
@@ -804,7 +967,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Signup Form Submit
-    document.querySelector('#signup-modal .modal-form')?.addEventListener('submit', (e) => {
+    document.getElementById('signup-form')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const fullNameInput = e.target.querySelector('input[placeholder="John Doe"]');
         const fullName = fullNameInput ? fullNameInput.value : '';
@@ -813,8 +976,25 @@ document.addEventListener('DOMContentLoaded', () => {
         handleSignUp(email, password, fullName);
     });
 
+    // Social Login buttons
+    document.getElementById('google-login-btn')?.addEventListener('click', signInWithGoogle);
+    document.getElementById('google-signup-btn')?.addEventListener('click', signInWithGoogle);
+
+    // Subscription buttons
+    document.getElementById('buy-pro-btn')?.addEventListener('click', initiateRazorpayPayment);
+
+    // Modal Triggers
     loginBtn?.addEventListener('click', () => openModal('login'));
     signupBtn?.addEventListener('click', () => openModal('signup'));
+    sellPromptBtn?.addEventListener('click', () => {
+        supabaseClient.auth.getUser().then(({ data: { user } }) => {
+            if (user) openModal('upload');
+            else openModal('login');
+        });
+    });
+
+    // Form Submits
+    document.getElementById('upload-form')?.addEventListener('submit', handlePromptUpload);
 
     // Mobile specific triggers
     document.getElementById('mobile-login-btn')?.addEventListener('click', () => openModal('login'));
@@ -830,6 +1010,6 @@ document.addEventListener('DOMContentLoaded', () => {
         handleForgotPassword();
     });
 
-    // Check session on load
+    // Initial session check
     checkUserSession();
 });
