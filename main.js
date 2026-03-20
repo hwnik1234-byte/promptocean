@@ -13,6 +13,7 @@ let supabaseClient = null;
 if (SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
+window.supabaseClient = supabaseClient; // Make it global for other pages to access
 
 let userSubscription = { plan_name: 'Free', status: 'inactive' };
 let userPurchases = []; // Array of prompt IDs purchased
@@ -35,8 +36,10 @@ const latestPrompts = [
 ];
 
 let allPrompts = [...trendingPrompts, ...latestPrompts];
-let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+window.favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+let favorites = window.favorites; // Maintain local reference for existing code
 let collections = JSON.parse(localStorage.getItem('collections') || '["Favorites", "Work", "Personal"]');
+let aiSettings = JSON.parse(localStorage.getItem('aiSettings') || '{"openai": "", "gemini": ""}');
 
 // Render Collections Sidebar
 function renderCollections() {
@@ -56,52 +59,54 @@ function renderCollections() {
 function createPromptCard(prompt) {
     const isFav = favorites.includes(prompt.id);
     const hasPurchased = userPurchases.includes(prompt.id);
-    const isAuthor = false; // We can check this later if user is logged in
-    
-    // Locked if: Premium AND (Not Pro AND Not Purchased AND Not Author)
-    const isLocked = prompt.is_premium && 
-                     userSubscription.plan_name !== 'Pro' && 
-                     !hasPurchased;
+
+    // Locked if: NOT Free AND (Not Purchased AND Not Author)
+    // prompt.is_free is the new column
+    const isLocked = !prompt.is_free && !hasPurchased;
 
     const card = document.createElement('div');
-    card.className = `prompt-card ${prompt.is_premium ? 'premium' : ''}`;
+    card.className = `prompt-card ${!prompt.is_free ? 'premium' : ''}`;
     card.setAttribute('data-id', prompt.id);
     card.innerHTML = `
         <div class="prompt-card-header">
             <div class="tag-group">
-                <span class="prompt-tag">${prompt.category}</span>
-                ${prompt.is_premium ? '<span class="pro-badge">PRO</span>' : ''}
+                <span class="prompt-tag">${prompt.categories ? prompt.categories.name : prompt.category || 'Uncategorized'}</span>
+                ${!prompt.is_free ? '<span class="pro-badge">PAID</span>' : ''}
             </div>
             <div class="card-actions">
-                <button class="icon-btn share-btn" data-title="${prompt.title}" data-text="Copy this prompt: ${prompt.preview}"><i data-lucide="share-2"></i></button>
+                <button class="icon-btn share-btn" data-title="${prompt.title}" data-text="Copy this prompt: ${prompt.description}"><i data-lucide="share-2"></i></button>
                 <button class="icon-btn heart-btn ${isFav ? 'active' : ''}" data-id="${prompt.id}"><i data-lucide="heart"></i></button>
             </div>
         </div>
         <h3>${prompt.title}</h3>
         <div class="prompt-preview">
-            <p>${prompt.preview}</p>
+            <p>${prompt.description || 'No description provided.'}</p>
             ${isLocked ? `
                 <div class="premium-overlay">
                     <i data-lucide="lock"></i>
-                    <span>Premium Prompt (₹${prompt.price || 99})</span>
+                    <span>Premium Prompt (₹${prompt.price || 0})</span>
                     <div class="overlay-btns">
-                        <button class="btn btn-primary btn-sm" onclick="document.getElementById('pricing').scrollIntoView({behavior:'smooth'})">Get Pro</button>
-                        <button class="btn btn-outline btn-sm buy-now-btn" data-id="${prompt.id}" data-price="${prompt.price || 99}">Buy This</button>
+                        <button class="btn btn-outline btn-sm unlock-demo-btn" data-id="${prompt.id}">Unlock (Demo)</button>
                     </div>
                 </div>
             ` : ''}
         </div>
-        <div class="prompt-card-footer">
-            <div class="prompt-stats">
+        <div class="prompt-card-footer" style="flex-direction: column; align-items: stretch; gap: 1rem;">
+            <div class="prompt-stats" style="width: 100%; display: flex; justify-content: space-between;">
                 <div class="rating-stars" data-id="${prompt.id}">
-                    ${[1, 2, 3, 4, 5].map(i => `<i data-lucide="star" class="${i <= Math.floor(prompt.rating) ? 'filled' : (i - 0.5 <= prompt.rating ? 'half-filled' : '')}" data-star="${i}"></i>`).join('')}
+                    ${[1, 2, 3, 4, 5].map(i => `<i data-lucide="star" class="${i <= Math.floor(prompt.rating || 5) ? 'filled' : ''}" data-star="${i}"></i>`).join('')}
                     <span>${prompt.rating || 'New'}</span>
                 </div>
-                <span><i data-lucide="save"></i> ${prompt.saves || 0}</span>
+                <span><i data-lucide="save"></i> ${prompt.saves_count || 0}</span>
             </div>
-            <button class="btn btn-outline btn-sm copy-btn" data-prompt="${prompt.preview}" ${isLocked ? 'disabled' : ''}>
-                <i data-lucide="copy"></i> ${isLocked ? 'Locked' : 'Copy'}
-            </button>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; width: 100%;">
+                <button class="btn btn-outline btn-sm copy-btn" data-prompt="${prompt.content}" ${isLocked ? 'disabled' : ''} style="display: flex; justify-content: center; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="copy"></i> ${isLocked ? 'Locked' : 'Copy'}
+                </button>
+                <a href="prompt-detail.html?id=${prompt.id}" class="btn btn-primary btn-sm" style="display: flex; justify-content: center; align-items: center; gap: 0.5rem; text-decoration: none;">
+                    <i data-lucide="eye"></i> View
+                </a>
+            </div>
         </div>
     `;
     return card;
@@ -117,7 +122,12 @@ async function renderPrompts(filterData = null) {
     // If no filterData provided and supabase active, try fetching
     let displayData = filterData;
     if (!displayData && supabaseClient) {
-        const { data, error } = await supabaseClient.from('prompts').select('*');
+        // Only fetch approved prompts for the main public view
+        const { data, error } = await supabaseClient
+            .from('prompts')
+            .select('*, categories(name)')
+            .eq('status', 'approved')
+            .order('created_at', { ascending: false });
         if (!error && data.length > 0) {
             displayData = data;
             allPrompts = data; // Update local cache
@@ -147,11 +157,16 @@ async function renderPrompts(filterData = null) {
         const trending = sortedData.slice(0, 6);
         const latest = sortedData.slice(6);
 
+        const latestSection = document.querySelector('.latest.container');
+        if (latestSection) {
+            latestSection.style.display = latest.length > 0 ? 'block' : 'none';
+        }
+
         trendingGrid.innerHTML = '';
         latestGrid.innerHTML = '';
 
         if (trending.length === 0 && latest.length === 0) {
-            trendingGrid.innerHTML = '<div class="no-results">No prompts found matching your criteria.</div>';
+            trendingGrid.innerHTML = '<div class="no-results" style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">No prompts found matching your criteria.</div>';
         }
 
         trending.forEach(p => trendingGrid.appendChild(createPromptCard(p)));
@@ -165,7 +180,7 @@ async function renderPrompts(filterData = null) {
         });
 
         document.querySelectorAll('.heart-btn').forEach(btn => {
-            btn.addEventListener('click', () => toggleFavorite(parseInt(btn.getAttribute('data-id')), btn));
+            btn.addEventListener('click', () => toggleFavorite(btn.getAttribute('data-id'), btn));
         });
 
         document.querySelectorAll('.share-btn').forEach(btn => {
@@ -179,7 +194,7 @@ async function renderPrompts(filterData = null) {
         document.querySelectorAll('.rating-stars i').forEach(star => {
             star.addEventListener('click', (e) => {
                 const container = e.target.closest('.rating-stars');
-                const id = parseInt(container.getAttribute('data-id'));
+                const id = container.getAttribute('data-id');
                 const rating = parseInt(star.getAttribute('data-star'));
                 updateRating(id, rating, container);
             });
@@ -234,39 +249,63 @@ function updateRating(id, rating, container) {
     }
 }
 
-async function toggleFavorite(id, btn) {
+window.toggleFavorite = async function (id, btn) {
+    let favorites = window.favorites;
     const isFav = favorites.includes(id);
 
-    if (supabaseClient) {
-        const { data: { user } } = await supabaseClient.auth.getUser();
+    const client = window.supabaseClient;
+    if (client) {
+        const { data: { user } } = await client.auth.getUser();
         if (user) {
             if (isFav) {
-                await supabaseClient.from('favorites').delete().eq('user_id', user.id).eq('prompt_id', id);
-                favorites = favorites.filter(favId => favId !== id);
-                btn.classList.remove('active');
+                await client.from('favorites').delete().eq('user_id', user.id).eq('prompt_id', id);
+                window.favorites = favorites.filter(favId => favId !== id);
+                btn?.classList.remove('active');
             } else {
-                await supabaseClient.from('favorites').insert([{ user_id: user.id, prompt_id: id }]);
-                favorites.push(id);
-                btn.classList.add('active');
+                await client.from('favorites').insert([{ user_id: user.id, prompt_id: id }]);
+                window.favorites.push(id);
+                btn?.classList.add('active');
+            }
+
+            // Update local storage
+            localStorage.setItem('favorites', JSON.stringify(window.favorites));
+
+            // Dynamically update UI count on main page if elements exist
+            const card = document.querySelector(`.prompt-card[data-id="${id}"]`);
+            if (card) {
+                const countSpan = card.querySelector('.prompt-stats > span:last-child');
+                if (countSpan) {
+                    let currentCount = parseInt(countSpan.textContent.replace(/[^0-9]/g, '')) || 0;
+                    currentCount = isFav ? Math.max(0, currentCount - 1) : currentCount + 1;
+                    countSpan.innerHTML = `<i data-lucide="save"></i> ${currentCount}`;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         } else {
-            // Unauthenticated fallback
             handleLocalFavorite(id, btn);
         }
     } else {
         handleLocalFavorite(id, btn);
     }
-    localStorage.setItem('favorites', JSON.stringify(favorites));
+}
+
+async function toggleFavorite(id, btn) {
+    return window.toggleFavorite(id, btn);
+}
+
+window.handleLocalFavorite = function (id, btn) {
+    if (window.favorites.includes(id)) {
+        window.favorites = window.favorites.filter(favId => favId !== id);
+        btn?.classList.remove('active');
+    } else {
+        window.favorites.push(id);
+        btn?.classList.add('active');
+    }
+    localStorage.setItem('favorites', JSON.stringify(window.favorites));
 }
 
 function handleLocalFavorite(id, btn) {
-    if (favorites.includes(id)) {
-        favorites = favorites.filter(favId => favId !== id);
-        btn.classList.remove('active');
-    } else {
-        favorites.push(id);
-        btn.classList.add('active');
-    }
+    return window.handleLocalFavorite(id, btn);
 }
 
 async function fetchFavorites() {
@@ -275,8 +314,8 @@ async function fetchFavorites() {
     if (user) {
         const { data, error } = await supabaseClient.from('favorites').select('prompt_id').eq('user_id', user.id);
         if (!error && data) {
-            favorites = data.map(f => f.prompt_id);
-            localStorage.setItem('favorites', JSON.stringify(favorites));
+            window.favorites = data.map(f => f.prompt_id);
+            localStorage.setItem('favorites', JSON.stringify(window.favorites));
             renderPrompts(); // Refresh UI with new fav icons
         }
     }
@@ -355,35 +394,59 @@ async function handlePromptUpload(e) {
     const isPremium = document.getElementById('up-premium').checked;
 
     const { error } = await supabaseClient.from('prompts').insert({
-        title, category, description, prompt_text: promptText,
-        user_id: user.id, is_premium: isPremium, price: parseFloat(price), is_public: true
+        title,
+        category,
+        description,
+        content: promptText, // 'content' is the new column
+        created_by: user.id, // 'created_by' is the new column
+        is_free: !isPremium, // 'is_free' is the logic
+        price: parseFloat(price),
+        is_public: true
     });
 
     if (error) alert('Error: ' + error.message);
     else { alert('Listed successfully! 🚀'); closeModal(); renderPrompts(); }
 }
 
-function initiatePromptPurchase(promptId, price) {
-    if (!supabaseClient) return alert('Please log in first.');
-    const options = {
-        key: RAZORPAY_KEY_ID,
-        amount: Math.round(price * 100),
-        currency: 'INR',
-        name: 'PromptOcean Marketplace',
-        description: `Purchase prompt #${promptId}`,
-        handler: async function (response) {
-            alert('Purchase Successful!');
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (user) {
-                await supabaseClient.from('purchases').insert({
-                    user_id: user.id, prompt_id: promptId, amount: price, status: 'completed'
-                });
-                renderPrompts();
-            }
-        },
-        theme: { color: '#7c3aed' }
-    };
-    new Razorpay(options).open();
+async function handleDemoUnlock(promptId) {
+    if (!supabaseClient) return;
+
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) return openModal('login');
+
+    try {
+        // Dummy Purchase Insert
+        const { error } = await supabaseClient.from('purchases').insert({
+            user_id: user.id,
+            prompt_id: promptId,
+            amount: 0,
+            payment_status: 'demo'
+        });
+
+        if (error) throw error;
+
+        // Fetch prompt author for earnings record
+        const { data: promptData } = await supabaseClient
+            .from('prompts')
+            .select('created_by')
+            .eq('id', promptId)
+            .single();
+
+        if (promptData) {
+            await supabaseClient.from('creator_earnings').insert({
+                creator_id: promptData.created_by,
+                prompt_id: promptId,
+                amount: 0,
+                commission: 0
+            });
+        }
+
+        alert('Prompt Unlocked (Demo)!');
+        fetchPurchases(); // Refresh local purchase state
+        renderPrompts();
+    } catch (err) {
+        alert('Unlock Error: ' + err.message);
+    }
 }
 
 // Copy Logic
@@ -431,9 +494,7 @@ function syncSearch(query) {
 
 // Modal Logic
 function openModal(type) {
-    if (!modalOverlay) return;
-
-    // Auto-close mobile menu if open
+    // Check for mobile menu and close it if open
     const navLinks = document.querySelector('.nav-links');
     const mobileMenuBtn = document.getElementById('mobile-menu-btn');
     if (navLinks?.classList.contains('active')) {
@@ -442,107 +503,122 @@ function openModal(type) {
         document.body.style.overflow = 'auto'; // Reset scroll
     }
 
-    modalOverlay.classList.add('active');
-    loginModal?.classList.remove('active');
-    signupModal?.classList.remove('active');
-    uploadModal?.classList.remove('active');
-    document.getElementById('submit-prompt-modal')?.classList.remove('active');
+    // Dynamic lookup if not initialized
+    if (!modalOverlay) modalOverlay = document.getElementById('modal-overlay');
+    if (!modalOverlay) return console.error('Modal overlay not found');
 
-    if (type === 'login') {
-        loginModal?.classList.add('active');
-    } else if (type === 'signup') {
-        signupModal?.classList.add('active');
-    } else if (type === 'upload') {
-        uploadModal?.classList.add('active');
-    } else if (type === 'submit') {
-        document.getElementById('submit-prompt-modal')?.classList.add('active');
+    modalOverlay.classList.add('active');
+    
+    // Ensure modal variables are mapped
+    const mLogin = loginModal || document.getElementById('login-modal');
+    const mSignup = signupModal || document.getElementById('signup-modal');
+    const mUpload = uploadModal || document.getElementById('upload-modal');
+    const mSubmit = document.getElementById('submit-prompt-modal');
+    const mSettings = document.getElementById('ai-settings-modal');
+
+    // Deactivate all
+    [mLogin, mSignup, mUpload, mSubmit, mSettings].forEach(m => m?.classList.remove('active'));
+
+    const targetModal = {
+        'login': mLogin,
+        'signup': mSignup,
+        'upload': mUpload,
+        'submit': mSubmit,
+        'ai-settings': mSettings
+    }[type];
+
+    if (targetModal) {
+        targetModal.classList.add('active');
+        
+        // Populate AI settings if needed
+        if (type === 'ai-settings') {
+            const openaiInput = document.getElementById('openai-key');
+            const geminiInput = document.getElementById('gemini-key');
+            if (openaiInput) openaiInput.value = aiSettings?.openai || '';
+            if (geminiInput) geminiInput.value = aiSettings?.gemini || '';
+        }
     }
 }
 
 function closeModal() {
+    if (!modalOverlay) modalOverlay = document.getElementById('modal-overlay');
     modalOverlay?.classList.remove('active');
-    loginModal?.classList.remove('active');
-    signupModal?.classList.remove('active');
-    uploadModal?.classList.remove('active');
-    document.getElementById('submit-prompt-modal')?.classList.remove('active');
+    
+    const modals = [
+        loginModal || document.getElementById('login-modal'),
+        signupModal || document.getElementById('signup-modal'),
+        uploadModal || document.getElementById('upload-modal'),
+        document.getElementById('submit-prompt-modal'),
+        document.getElementById('ai-settings-modal')
+    ];
+    modals.forEach(m => m?.classList.remove('active'));
 }
 
 // --- NEW SUPABASE AUTH LOGIC ---
 async function handleSignUp(email, password, fullName) {
-    if (!supabaseClient) return alert('Supabase not initialized. Please add your API keys.');
-    const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-            data: { 
-                full_name: fullName,
-                user_name: fullName.toLowerCase().replace(/\s+/g, '_') + Math.floor(Math.random() * 1000)
+    if (!supabaseClient) return alert('Supabase not initialized.');
+    try {
+        const { data, error } = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                    full_name: fullName
+                }
             }
-        }
-    });
+        });
 
-    if (error) {
-        alert('Error: ' + error.message);
-    } else {
+        if (error) throw error;
         alert('Verification email sent! Please check your inbox.');
         closeModal();
+    } catch (err) {
+        alert("Signup Error: " + err.message);
     }
 }
 
 async function signInWithGoogle() {
     if (!supabaseClient) return alert('Supabase not initialized.');
-    const { data, error } = await supabaseClient.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-            redirectTo: window.location.origin
-        }
-    });
-
-    if (error) {
-        alert('Error logging in with Google: ' + error.message);
+    try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: window.location.origin
+            }
+        });
+        if (error) throw error;
+    } catch (err) {
+        alert('Google Login Error: ' + err.message);
     }
 }
 
 async function handleLogin(email, password) {
-    if (!supabaseClient) return alert('Supabase not initialized. Please add your API keys.');
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password
-    });
+    if (!supabaseClient) return alert('Supabase not initialized.');
+    try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email,
+            password
+        });
 
-    if (error) {
-        alert('Error: ' + error.message);
-    } else {
+        if (error) throw error;
         updateAuthUI(data.user);
         closeModal();
-    }
-}
-
-async function handleForgotPassword() {
-    const email = prompt("Please enter your email address to reset your password:");
-    if (!email) return;
-    
-    if (!supabaseClient) return alert('Supabase not initialized.');
-    
-    // Supabase will send a reset link to this email
-    const { data, error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin
-    });
-    
-    if (error) {
-        alert("Error: " + error.message);
-    } else {
-        alert("Password reset link sent! Please check your email inbox.");
+    } catch (err) {
+        alert("Login Error: " + err.message);
     }
 }
 
 async function handleLogout() {
     if (!supabaseClient) return;
-    await supabaseClient.auth.signOut();
-    favorites = [];
-    localStorage.removeItem('favorites');
-    updateAuthUI(null);
-    renderPrompts(allPrompts); // Reset to default view
+    try {
+        await supabaseClient.auth.signOut();
+        favorites = [];
+        userPurchases = [];
+        localStorage.removeItem('favorites');
+        updateAuthUI(null);
+        window.location.reload(); // Hard refresh to clear all states
+    } catch (err) {
+        alert("Logout Error: " + err.message);
+    }
 }
 
 function updateAuthUI(user) {
@@ -553,9 +629,12 @@ function updateAuthUI(user) {
 
     if (user) {
         const displayName = user.user_metadata?.full_name || 'Profile';
-        
+
         // Update Header
-        if (loginHeaderBtn) loginHeaderBtn.textContent = displayName;
+        if (loginHeaderBtn) {
+            loginHeaderBtn.textContent = 'Dashboard';
+            loginHeaderBtn.onclick = () => window.location.href = 'creator-dashboard.html';
+        }
         if (signupHeaderBtn) {
             signupHeaderBtn.textContent = 'Logout';
             signupHeaderBtn.onclick = handleLogout;
@@ -563,8 +642,8 @@ function updateAuthUI(user) {
 
         // Update Mobile Menu
         if (mobileLoginBtn) {
-            mobileLoginBtn.textContent = displayName;
-            mobileLoginBtn.onclick = null; // Maybe link to profile later
+            mobileLoginBtn.textContent = 'Dashboard';
+            mobileLoginBtn.onclick = () => window.location.href = 'creator-dashboard.html';
         }
         if (mobileSignupBtn) {
             mobileSignupBtn.textContent = 'Logout';
@@ -572,7 +651,10 @@ function updateAuthUI(user) {
         }
     } else {
         // Reset Header
-        if (loginHeaderBtn) loginHeaderBtn.textContent = 'Login';
+        if (loginHeaderBtn) {
+            loginHeaderBtn.textContent = 'Login';
+            loginHeaderBtn.onclick = () => openModal('login');
+        }
         if (signupHeaderBtn) {
             signupHeaderBtn.textContent = 'Sign Up';
             signupHeaderBtn.onclick = () => openModal('signup');
@@ -593,12 +675,26 @@ function updateAuthUI(user) {
 // Check session on load
 async function checkUserSession() {
     if (!supabaseClient) return;
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    updateAuthUI(user);
-    if (user) {
-        fetchFavorites();
-        fetchSubscription();
-        fetchPurchases();
+    try {
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+
+        if (session?.user) {
+            updateAuthUI(session.user);
+            fetchFavorites();
+            fetchSubscription();
+            fetchPurchases();
+        } else {
+            updateAuthUI(null);
+
+            // Redirect away from protected creator pages if not logged in
+            const currentPath = window.location.pathname;
+            if (currentPath.endsWith('create-prompt.html') || currentPath.endsWith('creator-dashboard.html')) {
+                window.location.href = 'index.html';
+            }
+        }
+    } catch (err) {
+        console.error("Session Check Error:", err.message);
     }
 }
 // -----------------------------
@@ -678,7 +774,7 @@ document.addEventListener('DOMContentLoaded', () => {
         favFilterBtn.classList.add('active');
         const favPrompts = allPrompts.filter(p => favorites.includes(p.id));
         renderPrompts(favPrompts);
-        
+
         // Scroll to trending section to show results
         document.getElementById('trending')?.scrollIntoView({ behavior: 'smooth' });
     });
@@ -734,37 +830,63 @@ document.addEventListener('DOMContentLoaded', () => {
     newPromptForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const title = document.getElementById('new-prompt-title').value;
-        const category = document.getElementById('new-prompt-category').value;
-        const preview = document.getElementById('new-prompt-text').value;
+        const categoryName = document.getElementById('new-prompt-category').value;
+        const promptText = document.getElementById('new-prompt-text').value;
 
-        const newPrompt = {
-            title,
-            category,
-            preview,
+        const newPromptLocal = {
+            id: Date.now(),
+            title: title,
+            category: categoryName,
+            description: promptText.substring(0, 100) + (promptText.length > 100 ? '...' : ''),
+            content: promptText,
             saves: 0,
             rating: 5.0
         };
 
         if (supabaseClient) {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            const { data, error } = await supabaseClient.from('prompts').insert([
-                { ...newPrompt, user_id: user?.id }
-            ]).select();
+            try {
+                const { data: { user } } = await supabaseClient.auth.getUser();
 
-            if (error) {
-                alert('Error submitting prompt: ' + error.message);
-                return;
+                // Fetch category ID to avoid schema errors
+                const { data: catData } = await supabaseClient
+                    .from('categories')
+                    .select('id')
+                    .eq('name', categoryName)
+                    .single();
+
+                const dbInsertPayload = {
+                    title: title,
+                    description: promptText.substring(0, 100) + (promptText.length > 100 ? '...' : ''),
+                    content: promptText,
+                    status: 'approved',
+                    is_free: true
+                };
+
+                if (catData && catData.id) {
+                    dbInsertPayload.category_id = catData.id;
+                }
+
+                const { data, error } = await supabaseClient.from('prompts').insert([dbInsertPayload]).select('*, categories(name)');
+
+                if (error) {
+                    console.error('Database Error:', error);
+                    alert('Submission failed or schema mismatch: ' + error.message + '\n\nSaved locally instead.');
+                    allPrompts.unshift(newPromptLocal);
+                } else if (data && data.length > 0) {
+                    allPrompts.unshift(data[0]);
+                }
+            } catch (err) {
+                console.error(err);
+                allPrompts.unshift(newPromptLocal);
             }
-            allPrompts.unshift(data[0]);
         } else {
-            newPrompt.id = Date.now();
-            allPrompts.unshift(newPrompt);
+            allPrompts.unshift(newPromptLocal);
         }
 
         renderPrompts(allPrompts);
         closeModal();
         newPromptForm.reset();
-        alert('Prompt submitted and added to the list!');
+        alert('Prompt successfully added to the library!');
     });
 
     // Playground Logic
@@ -799,7 +921,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderPlaygroundHistory() {
         const historyList = document.getElementById('history-list');
         if (!historyList) return;
-        
+
         const history = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
         if (history.length === 0) {
             historyList.innerHTML = '<p class="placeholder-text">No history yet.</p>';
@@ -812,9 +934,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     <strong>${item.topic.substring(0, 30)}${item.topic.length > 30 ? '...' : ''}</strong>
                     <span>${item.tone} • ${item.format}</span>
                 </div>
-                <button class="icon-btn small-btn copy-btn" data-prompt="${item.topic}"><i data-lucide="copy"></i></button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="icon-btn small-btn copy-btn" data-prompt="${item.topic}"><i data-lucide="copy"></i></button>
+                    <button class="icon-btn small-btn delete-history-btn" data-index="${index}" style="color: var(--text-muted);"><i data-lucide="trash-2"></i></button>
+                </div>
             </div>
         `).join('');
+
+        const deleteBtns = historyList.querySelectorAll('.delete-history-btn');
+        deleteBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const index = parseInt(e.currentTarget.dataset.index);
+                const currentHistory = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
+                currentHistory.splice(index, 1);
+                localStorage.setItem('playgroundHistory', JSON.stringify(currentHistory));
+                renderPlaygroundHistory();
+            });
+        });
         if (window.lucide) lucide.createIcons();
     }
 
@@ -836,23 +973,184 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        playgroundBtn.innerHTML = '<i class="loader"></i> Generating...';
+        playgroundBtn.innerHTML = '<i class="loader spin"></i> Generating Pulse...';
         playgroundBtn.disabled = true;
 
-        setTimeout(() => {
-            const resultHtml = `
-                <div class="result-card">
-                    <div class="result-header">
-                        <h4><i data-lucide="sparkles"></i> Optimized Prompt</h4>
-                        <span class="badge badge-outline">${tone}</span>
-                    </div>
-                    <div class="result-text">
-                        "${topic}. Please write this in a ${tone.toLowerCase()} tone and present the information as a ${format.toLowerCase()}."
-                    </div>
-                    <div class="result-footer">
-                        <button class="btn btn-primary btn-sm copy-btn" data-prompt="${topic}">
-                            <i data-lucide="copy"></i> Copy Optimized Prompt
+        const selectedModel = document.getElementById('playground-model')?.value || 'optimized';
+
+        if (selectedModel === 'optimized') {
+            generateOptimizedPrompt(topic, tone, format);
+        } else {
+            handleRealAIGeneration(topic, tone, format, selectedModel);
+        }
+    });
+
+    async function handleRealAIGeneration(topic, tone, format, model) {
+        const apiKey = model.startsWith('gpt') ? aiSettings.openai : aiSettings.gemini;
+
+        if (!apiKey) {
+            playgroundBtn.innerHTML = '<i data-lucide="zap"></i> Generate Result';
+            playgroundBtn.disabled = false;
+            if (window.lucide) lucide.createIcons();
+
+            showNoKeyAlert(model, topic, tone, format);
+            return;
+        }
+
+        try {
+            let resultText = "";
+            if (model.startsWith('gpt')) {
+                resultText = await fetchOpenAI(topic, tone, format, apiKey);
+            } else {
+                resultText = await fetchGemini(topic, tone, format, apiKey);
+            }
+            renderAIResult(resultText, model, topic);
+        } catch (err) {
+            alert(`AI Error: ${err.message}`);
+        } finally {
+            playgroundBtn.innerHTML = '<i data-lucide="zap"></i> Generate Result';
+            playgroundBtn.disabled = false;
+            if (window.lucide) lucide.createIcons();
+        }
+    }
+
+    function showNoKeyAlert(model, topic, tone, format) {
+        const platform = model.startsWith('gpt') ? 'ChatGPT' : 'Gemini';
+        const url = model.startsWith('gpt')
+            ? `https://chatgpt.com/?q=${encodeURIComponent(topic)}`
+            : `https://gemini.google.com/app?q=${encodeURIComponent(topic)}`;
+
+        playgroundResult.innerHTML = `
+            <div class="ai-generated-card alert-card">
+                <div class="ai-card-header">
+                    <div class="ai-card-title"><i data-lucide="info"></i> API Key Required</div>
+                </div>
+                <div class="ai-card-body" style="text-align: center; padding: 40px 20px;">
+                    <p style="margin-bottom: 24px;">To generate results directly here, please add your <strong>${platform} API Key</strong> in settings.</p>
+                    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                        <button class="btn btn-primary" onclick="window.openModal('ai-settings')">
+                            <i data-lucide="settings"></i> Configure Keys
                         </button>
+                        <a href="${url}" target="_blank" class="btn btn-outline">
+                            <i data-lucide="external-link"></i> Continue on ${platform}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+    }
+
+    async function fetchOpenAI(topic, tone, format, key) {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${key}`
+            },
+            body: JSON.stringify({
+                model: "gpt-4o",
+                messages: [{
+                    role: "system",
+                    content: `You are a professional assistant. Tone: ${tone}. Format: ${format}.`
+                }, {
+                    role: "user",
+                    content: topic
+                }]
+            })
+        });
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+        return data.choices[0].message.content;
+    }
+
+    async function fetchGemini(topic, tone, format, key) {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: `Tone: ${tone}. Format: ${format}. Topic: ${topic}` }] }]
+            })
+        });
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+        return data.candidates[0].content.parts[0].text;
+    }
+
+    function renderAIResult(text, model, originalTopic) {
+        const platform = model.startsWith('gpt') ? 'ChatGPT' : 'Gemini';
+        playgroundResult.innerHTML = `
+            <div class="ai-generated-card">
+                <div class="ai-card-header">
+                    <div class="mac-dots"><span></span><span></span><span></span></div>
+                    <div class="ai-card-title"><i data-lucide="sparkles"></i> Generated by ${platform}</div>
+                    <button class="icon-btn small-btn copy-btn" data-prompt="${text.replace(/"/g, '&quot;')}">
+                        <i data-lucide="copy"></i>
+                    </button>
+                </div>
+                <div class="ai-card-body">
+                    <div class="markdown-content" style="white-space: pre-wrap; font-size: 1rem; line-height: 1.6;">${text}</div>
+                </div>
+                <div class="ai-card-footer" style="padding: 12px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 8px;">
+                     <button class="btn btn-sm btn-outline" onclick="window.open('${model.startsWith('gpt') ? 'https://chat.openai.com' : 'https://gemini.google.com'}', '_blank')">
+                        View on ${platform}
+                     </button>
+                </div>
+            </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+
+        // Save to history
+        const history = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
+        history.unshift({ topic: originalTopic, result: text, date: new Date().toISOString(), model: platform });
+        localStorage.setItem('playgroundHistory', JSON.stringify(history.slice(0, 10)));
+        renderPlaygroundHistory();
+    }
+
+    function generateOptimizedPrompt(topic, tone, format) {
+        setTimeout(() => {
+            const rawPrompt = `Act as an elite expert and absolute authority in this field.\n\n**Your Objective:**\n${topic}\n\n**Instructions & Guidelines:**\n- Adopt a strictly ${tone.toLowerCase()} tone of voice throughout your entire response.\n- Ensure your output is highly actionable, logically structured, and easy to understand.\n- Anticipate edge-cases, provide comprehensive details, and do not use generic filler words.\n\n**Format Requirements:**\n- Present the final output precisely as a ${format.toLowerCase()}.\n- Use markdown (headings, bold text, bullet points) where appropriate to dramatically enhance readability.`;
+
+            const resultHtml = `
+                <div class="ai-generated-card">
+                    <div class="ai-card-header">
+                        <div class="mac-dots">
+                            <span></span><span></span><span></span>
+                        </div>
+                        <div class="ai-card-title">
+                            <i data-lucide="sparkles" style="color: var(--accent-primary); width: 16px;"></i> Optimized Meta-Prompt
+                        </div>
+                        <button class="icon-btn small-btn copy-btn" data-prompt="${rawPrompt.replace(/"/g, '&quot;')}" title="Copy to Clipboard">
+                            <i data-lucide="copy"></i>
+                        </button>
+                    </div>
+                    <div class="ai-card-body">
+                        <div class="prompt-section">
+                            <span class="prompt-label">ROLE</span>
+                            <p>Act as an elite expert and absolute authority in this field.</p>
+                        </div>
+                        <div class="prompt-divider"></div>
+                        <div class="prompt-section">
+                            <span class="prompt-label">OBJECTIVE</span>
+                            <p class="highlight">${topic}</p>
+                        </div>
+                        <div class="prompt-divider"></div>
+                        <div class="prompt-section">
+                            <span class="prompt-label">INSTRUCTIONS</span>
+                            <ul>
+                                <li>Adopt a strictly <strong>${tone.toLowerCase()}</strong> tone of voice throughout your entire response.</li>
+                                <li>Ensure your output is highly actionable, logically structured, and easy to understand.</li>
+                                <li>Anticipate edge-cases, provide comprehensive details, and do not use generic filler words.</li>
+                            </ul>
+                        </div>
+                        <div class="prompt-divider"></div>
+                        <div class="prompt-section">
+                            <span class="prompt-label">FORMAT</span>
+                            <ul>
+                                <li>Present the final output precisely as a <strong>${format.toLowerCase()}</strong>.</li>
+                                <li>Use markdown (headings, bold text, bullet points) where appropriate to dramatically enhance readability.</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             `;
@@ -875,7 +1173,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (window.lucide) lucide.createIcons();
         }, 1200);
-    });
+    }
 
     // Initial Render Actions
     renderCollections();
@@ -983,25 +1281,103 @@ document.addEventListener('DOMContentLoaded', () => {
     // Subscription buttons
     document.getElementById('buy-pro-btn')?.addEventListener('click', initiateRazorpayPayment);
 
-    // Modal Triggers
-    loginBtn?.addEventListener('click', () => openModal('login'));
-    signupBtn?.addEventListener('click', () => openModal('signup'));
-    sellPromptBtn?.addEventListener('click', () => {
-        supabaseClient.auth.getUser().then(({ data: { user } }) => {
-            if (user) openModal('upload');
-            else openModal('login');
-        });
+    // Global click listener for Unlock buttons
+    document.addEventListener('click', (e) => {
+        const unlockBtn = e.target.closest('.unlock-demo-btn');
+        if (unlockBtn) {
+            const promptId = unlockBtn.getAttribute('data-id');
+            handleDemoUnlock(promptId);
+        }
     });
 
+    // Global copy button handler
+    document.addEventListener('click', async (e) => {
+        const copyBtn = e.target.closest('.copy-btn');
+        if (copyBtn) {
+            const promptText = copyBtn.getAttribute('data-prompt');
+            if (promptText) {
+                try {
+                    await navigator.clipboard.writeText(promptText);
+                    const originalHtml = copyBtn.innerHTML;
+                    copyBtn.innerHTML = '<i data-lucide="check" style="color: var(--accent-primary);"></i>';
+                    if (window.lucide) lucide.createIcons();
+                    setTimeout(() => {
+                        copyBtn.innerHTML = originalHtml;
+                    }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                }
+            }
+        }
+    });
+
+    // Modal Triggers
+    if (loginBtn) loginBtn.addEventListener('click', () => openModal('login'));
+    if (signupBtn) signupBtn.addEventListener('click', () => openModal('signup'));
+
+    // AI Settings Modal
+    document.getElementById('ai-settings-btn')?.addEventListener('click', () => openModal('ai-settings'));
+
+    // Internal API to open modals globally
+    // openModal is already global, no need to re-assign (it causes recursion)
+
+
+    document.getElementById('ai-settings-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        aiSettings.openai = document.getElementById('openai-key').value.trim();
+        aiSettings.gemini = document.getElementById('gemini-key').value.trim();
+        localStorage.setItem('aiSettings', JSON.stringify(aiSettings));
+        alert('AI credentials saved locally! You can now generate real-time results.');
+        closeModal();
+    });
+    const handleCreatorAccess = (e) => {
+        if (e) e.preventDefault();
+        supabaseClient.auth.getUser().then(({ data: { user } }) => {
+            if (user) window.location.href = 'create-prompt.html';
+            else openModal('login');
+        });
+    };
+
+    if (sellPromptBtn) {
+        sellPromptBtn.addEventListener('click', handleCreatorAccess);
+    }
+
+    const becomeCreatorBtn = document.getElementById('become-creator-btn');
+    if (becomeCreatorBtn) {
+        becomeCreatorBtn.addEventListener('click', handleCreatorAccess);
+    }
+
     // Form Submits
-    document.getElementById('upload-form')?.addEventListener('submit', handlePromptUpload);
+    if (document.getElementById('upload-form')) {
+        document.getElementById('upload-form').addEventListener('submit', handlePromptUpload);
+    }
 
     // Mobile specific triggers
     document.getElementById('mobile-login-btn')?.addEventListener('click', () => openModal('login'));
     document.getElementById('mobile-signup-btn')?.addEventListener('click', () => openModal('signup'));
 
-    closeButtons.forEach(btn => btn.addEventListener('click', closeModal));
-    modalOverlay?.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+    // Prompt of the Day Actions
+    document.getElementById('potd-copy-btn')?.addEventListener('click', (e) => {
+        const text = "Generate 5 startup ideas in the [industry] industry. Include problem, solution, and target audience.";
+        copyToClipboard(text, e.currentTarget);
+    });
+
+    document.getElementById('potd-test-btn')?.addEventListener('click', () => {
+        if (playgroundInput) {
+            playgroundInput.value = "Generate 5 startup ideas in the [industry] industry. Include problem, solution, and target audience.";
+            updatePlaygroundVariables();
+        }
+    });
+
+    // Global Modal Delegation (100% working)
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.modal-close') || e.target.closest('.close-modal')) {
+            closeModal();
+        }
+        if (e.target === modalOverlay) {
+            closeModal();
+        }
+    });
     switchToSignup?.addEventListener('click', (e) => { e.preventDefault(); openModal('signup'); });
     switchToLogin?.addEventListener('click', (e) => { e.preventDefault(); openModal('login'); });
 

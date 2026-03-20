@@ -10,6 +10,7 @@
     <meta property="og:description" content="The ultimate repository for high-quality AI prompts. Copy, test, and share with ease.">
     <meta property="og:type" content="website">
     <meta name="twitter:card" content="summary_large_image">
+    <meta name="keywords" content="chatgpt prompts, best ai prompts, midjourney prompts, ai prompts for business, premium prompts, prompt marketplace">
     <!-- Google Fonts: Outfit for Headings, Inter for Body -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -44,8 +45,8 @@
                 </div>
                 <li><a href="#" class="active">Home</a></li>
                 <li><a href="#categories">Categories</a></li>
-                <li><a href="#trending">Popular</a></li>
-                <li><a href="#submit">Submit Prompt</a></li>
+                <li><a href="blog.html">Blog</a></li>
+                <li><a href="pricing.html">Pricing</a></li>
                 <div class="mobile-only-btns">
                     <button class="btn btn-outline" id="mobile-login-btn">Login</button>
                     <button class="btn btn-primary" id="mobile-signup-btn">Sign Up</button>
@@ -62,13 +63,6 @@
                 <button class="btn btn-primary" id="sell-prompt-btn" style="margin-right: 8px;">
                     <i data-lucide="plus"></i> Sell Prompt
                 </button>
-                <div class="header-search-container" id="header-search-container">
-                    <button class="icon-btn" id="header-search-toggle" aria-label="Search"><i
-                            data-lucide="search"></i></button>
-                    <input type="text" placeholder="Search prompts..." id="header-search-input"
-                        class="header-search-input" autocomplete="off">
-                    <div class="search-suggestions" id="header-search-suggestions"></div>
-                </div>
                 <button class="icon-btn theme-toggle" id="theme-toggle" aria-label="Toggle Theme">
                     <i data-lucide="moon" class="moon-icon"></i>
                     <i data-lucide="sun" class="sun-icon"></i>
@@ -88,9 +82,8 @@
         <!-- 2. Hero Section -->
         <section class="hero" data-aos="fade-up">
             <div class="container hero-content">
-                <h1 class="hero-title">Discover the Best AI Prompts for <span>Anything</span></h1>
-                <p class="hero-subtitle">Find, copy, and use powerful prompts for ChatGPT, coding, marketing, and more.
-                </p>
+                <h1 class="hero-title">Discover High-Converting <span>AI Prompts</span></h1>
+                <p class="hero-subtitle">The ultimate repository for high-quality AI prompts. Copy, test, and monetize your creations.</p>
 
                 <div class="hero-search-wrapper">
                     <div class="search-bar">
@@ -102,8 +95,9 @@
                     </div>
                 </div>
 
-                <div class="hero-btns">
-                    <button class="btn btn-secondary"><i data-lucide="grid"></i> Browse Categories</button>
+                <div class="hero-btns" style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center;">
+                    <a href="#trending" class="btn btn-primary"><i data-lucide="rocket"></i> Explore Prompts</a>
+                    <a href="#" id="become-creator-btn" class="btn btn-secondary"><i data-lucide="award"></i> Become Creator</a>
                 </div>
             </div>
             <div class="hero-bg-glow"></div>
@@ -203,8 +197,8 @@
                         <p class="potd-description">Generate 5 startup ideas in a specific industry. Include problem,
                             solution, and target audience.</p>
                         <div class="potd-actions">
-                            <button class="btn btn-primary"><i data-lucide="copy"></i> Copy Prompt</button>
-                            <button class="btn btn-outline">Test Prompt</button>
+                            <button class="btn btn-primary" id="potd-copy-btn"><i data-lucide="copy"></i> Copy Prompt</button>
+                            <a href="#playground" class="btn btn-outline" id="potd-test-btn" style="text-decoration: none;">Test Prompt</a>
                         </div>
                     </div>
                     <div class="potd-preview">
@@ -215,7 +209,7 @@
         </section>
 
         <!-- 6. Prompt Playground -->
-        <section class="playground container" data-aos="fade-up">
+        <section class="playground container" data-aos="fade-up" id="playground">
             <h2 class="section-title">Prompt Playground ⚡</h2>
             <p class="section-subtitle">Test prompts instantly and see how AI responds.</p>
             <div class="playground-wrapper">
@@ -225,17 +219,39 @@
                         <span class="badge">Interactive</span>
                     </div>
                     <div class="playground-settings">
-                        <select class="setting-select" id="playground-tone">
-                            <option value="Professional">💼 Professional Tone</option>
-                            <option value="Creative">🎨 Creative Tone</option>
-                            <option value="Simplified">👶 Simplified Tone</option>
-                            <option value="Humorous">🤣 Humorous Tone</option>
-                        </select>
-                        <select class="setting-select" id="playground-format">
-                            <option value="Paragraph">📝 Paragraph Format</option>
-                            <option value="Bulleted List">📋 Bulleted List</option>
-                            <option value="Step-by-step">🔢 Step-by-step</option>
-                        </select>
+                        <div class="playground-controls">
+                            <div class="control-group">
+                                <label><i data-lucide="shield-check"></i> Tone</label>
+                                <select id="playground-tone">
+                                    <option value="Professional">💼 Professional</option>
+                                    <option value="Creative">🎨 Creative</option>
+                                    <option value="Casual">👋 Casual</option>
+                                    <option value="Academic">🎓 Academic</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label><i data-lucide="layout"></i> Format</label>
+                                <select id="playground-format">
+                                    <option value="Paragraph">📄 Paragraph</option>
+                                    <option value="Bullet Points">📋 Bullet Points</option>
+                                    <option value="Detailed Guide">📚 Detailed Guide</option>
+                                    <option value="Executive Summary">👔 Summary</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label><i data-lucide="cpu"></i> Model</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <select id="playground-model" style="flex: 1;">
+                                        <option value="optimized">✨ Prompt Optimizer</option>
+                                        <option value="gpt-4o">🤖 ChatGPT (GPT-4o)</option>
+                                        <option value="gemini-pro">♊ Gemini Pro</option>
+                                    </select>
+                                    <button class="icon-btn" id="ai-settings-btn" title="AI Settings">
+                                        <i data-lucide="settings"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <p class="playground-prompt-text">Write a blog introduction about artificial intelligence.</p>
                     <textarea placeholder="Enter topic here (e.g. Future of AI in Medicine)..."
@@ -331,53 +347,58 @@
                 </form>
             </div>
         </section>
+
+        <!-- 9.5 Testimonials -->
+        <section class="testimonials-section container" data-aos="fade-up" style="margin: 6rem auto;">
+            <div style="text-align: center; margin-bottom: 3rem;">
+                <h2 class="section-title">Loved by Prompt Engineers</h2>
+                <p style="color: var(--text-secondary);">See what our community has to say about PromptOcean.</p>
+            </div>
+            <div class="testimonials-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+                <div class="testimonial-card" style="background: var(--surface-light); padding: 2rem; border-radius: 1rem; border: 1px solid var(--surface-border);">
+                    <div style="display: flex; gap: 4px; color: #facc15; margin-bottom: 1rem;">
+                        <i data-lucide="star" class="filled" style="width: 16px;"></i><i data-lucide="star" class="filled" style="width: 16px;"></i><i data-lucide="star" class="filled" style="width: 16px;"></i><i data-lucide="star" class="filled" style="width: 16px;"></i><i data-lucide="star" class="filled" style="width: 16px;"></i>
+                    </div>
+                    <p style="color: var(--text-primary); font-size: 1.05rem; line-height: 1.6; margin-bottom: 1.5rem;">"PromptOcean completely changed how I use ChatGPT for my marketing agency. Unlocking the premium prompts saved me hundreds of hours."</p>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--accent-primary); display: flex; align-items: center; justify-content: center; font-weight: bold; color: white;">A</div>
+                        <div>
+                            <h4 style="margin: 0; font-size: 0.9rem;">Alex Morgan</h4>
+                            <p style="margin: 0; font-size: 0.8rem; color: var(--text-secondary);">Marketing Director</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="testimonial-card" style="background: var(--surface-light); padding: 2rem; border-radius: 1rem; border: 1px solid var(--surface-border);">
+                    <div style="display: flex; gap: 4px; color: #facc15; margin-bottom: 1rem;">
+                        <i data-lucide="star" class="filled" style="width: 16px;"></i><i data-lucide="star" class="filled" style="width: 16px;"></i><i data-lucide="star" class="filled" style="width: 16px;"></i><i data-lucide="star" class="filled" style="width: 16px;"></i><i data-lucide="star" class="filled" style="width: 16px;"></i>
+                    </div>
+                    <p style="color: var(--text-primary); font-size: 1.05rem; line-height: 1.6; margin-bottom: 1.5rem;">"As a creator, this platform is fantastic. I can easily upload my best coding prompts and monetize them instantly through the dashboard."</p>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: #10b981; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white;">S</div>
+                        <div>
+                            <h4 style="margin: 0; font-size: 0.9rem;">Sarah Chen</h4>
+                            <p style="margin: 0; font-size: 0.8rem; color: var(--text-secondary);">Senior Developer</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="testimonial-card" style="background: var(--surface-light); padding: 2rem; border-radius: 1rem; border: 1px solid var(--surface-border);">
+                    <div style="display: flex; gap: 4px; color: #facc15; margin-bottom: 1rem;">
+                        <i data-lucide="star" class="filled" style="width: 16px;"></i><i data-lucide="star" class="filled" style="width: 16px;"></i><i data-lucide="star" class="filled" style="width: 16px;"></i><i data-lucide="star" class="filled" style="width: 16px;"></i><i data-lucide="star" style="width: 16px;"></i>
+                    </div>
+                    <p style="color: var(--text-primary); font-size: 1.05rem; line-height: 1.6; margin-bottom: 1.5rem;">"The quality of the SEO and brainstorming prompts here is unmatched. It's my daily driver for content ideation and SaaS validation."</p>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: #6366f1; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white;">M</div>
+                        <div>
+                            <h4 style="margin: 0; font-size: 0.9rem;">Markus R.</h4>
+                            <p style="margin: 0; font-size: 0.8rem; color: var(--text-secondary);">SaaS Founder</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 
-    <!-- Sell Prompt Modal -->
-    <div id="upload-modal" class="modal">
-        <div class="modal-content">
-            <button class="close-modal">&times;</button>
-            <div class="modal-header">
-                <h2>Sell Your Prompt 🚀</h2>
-                <p>Share your prompt engineering magic and earn.</p>
-            </div>
-            <form id="upload-form" class="modal-form">
-                <div class="form-group">
-                    <label>Prompt Title</label>
-                    <input type="text" id="up-title" placeholder="e.g. SEO Content Master" required>
-                </div>
-                <div class="form-group">
-                    <label>Category</label>
-                    <select id="up-category" required>
-                        <option value="Marketing">Marketing</option>
-                        <option value="Coding">Coding</option>
-                        <option value="Content Creation">Content Creation</option>
-                        <option value="Design">Design</option>
-                        <option value="Brainstorming">Brainstorming</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Prompt Description (Preview)</label>
-                    <textarea id="up-description" placeholder="What does this prompt do?" required></textarea>
-                </div>
-                <div class="form-group">
-                    <label>The Prompt Text</label>
-                    <textarea id="up-text" placeholder="Paste your prompt here [Use brackets for variables]" class="code-font" required></textarea>
-                </div>
-                <div class="form-row" style="display: flex; gap: 16px; align-items: center;">
-                    <div class="form-group" style="flex: 1;">
-                        <label>Base Price (₹)</label>
-                        <input type="number" id="up-price" value="99" min="0">
-                    </div>
-                    <div class="form-group" style="flex: 1; display: flex; align-items: center; gap: 8px; margin-top: 24px;">
-                        <input type="checkbox" id="up-premium" checked>
-                        <label for="up-premium">Premium Prompt</label>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-primary btn-full">List Prompt</button>
-            </form>
-        </div>
-    </div>
+
 
     <!-- 10. Footer -->
     <!-- Modal Overlays -->
@@ -406,11 +427,37 @@
                     <input type="password" placeholder="••••••••" required>
                     <a href="#" id="forgot-password-link" style="display: block; text-align: right; font-size: 0.85rem; color: var(--accent-primary); margin-top: 5px; text-decoration: none;">Forgot Password?</a>
                 </div>
-                <button type="submit" class="btn btn-primary btn-full">Login</button>
+                <button type="submit" class="btn btn-primary btn-full">Login to PromptOcean</button>
             </form>
             <div class="modal-footer">
-                <p>Don't have an account? <a href="#" id="switch-to-signup">Sign Up</a></p>
+                <p>Don't have an account? <a href="#" id="switch-to-signup">Sign up for free</a></p>
             </div>
+        </div>
+
+        <!-- AI Settings Modal -->
+        <div class="modal" id="ai-settings-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>AI Integration Settings</h2>
+                <p>Configure your own API keys for real-time generation.</p>
+            </div>
+            <div class="alert note" style="margin-bottom: 20px;">
+                <i data-lucide="info"></i>
+                <span>Keys are stored <strong>locally</strong> in your browser and never touch our servers.</span>
+            </div>
+            <form class="modal-form" id="ai-settings-form">
+                <div class="form-group">
+                    <label>OpenAI API Key (ChatGPT)</label>
+                    <input type="password" id="openai-key" placeholder="sk-...">
+                    <small style="color: var(--text-muted);">Get it from <a href="https://platform.openai.com" target="_blank" style="color: var(--accent-primary);">OpenAI Dashboard</a></small>
+                </div>
+                <div class="form-group">
+                    <label>Google Gemini API Key</label>
+                    <input type="password" id="gemini-key" placeholder="AIzaSy...">
+                    <small style="color: var(--text-muted);">Get it from <a href="https://aistudio.google.com" target="_blank" style="color: var(--accent-primary);">AI Studio</a></small>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Save AI Credentials</button>
+            </form>
         </div>
 
         <!-- Signup Modal -->

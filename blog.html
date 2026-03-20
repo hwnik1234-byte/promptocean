@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PromptOcean Blog | AI Prompting Guides & Tips</title>
+    <meta name="description" content="Learn prompt engineering, read the latest news in AI, and discover high-converting prompt techniques.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Premium Blog Redesign */
+        .blog-hero { padding: 8rem 2rem 4rem; text-align: center; position: relative; overflow: hidden; }
+        .blog-hero::before { content: ''; position: absolute; top: -50%; left: 30%; width: 50vw; height: 50vw; background: radial-gradient(circle, var(--accent-secondary) 0%, transparent 70%); opacity: 0.15; filter: blur(80px); z-index: -1; animation: pulse 8s infinite alternate;}
+        .blog-hero h1 { font-family: 'Outfit'; font-size: 4rem; font-weight: 800; margin-bottom: 1.5rem; background: var(--gradient-hero); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -1px;}
+        .blog-hero p { font-size: 1.25rem; color: var(--text-muted); max-width: 650px; margin: 0 auto; line-height: 1.7; }
+
+        .blog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 2.5rem; max-width: 1200px; margin: 0 auto 8rem; padding: 0 2rem; position: relative; z-index: 1;}
+        .blog-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 24px; overflow: hidden; text-decoration: none; display: flex; flex-direction: column; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 10px 30px rgba(0,0,0,0.2); transition: var(--transition-smooth); position: relative; top: 0;}
+        .blog-card:hover { transform: translateY(-8px); border-color: var(--accent-primary); box-shadow: var(--shadow-premium); }
+
+        .blog-img { width: 100%; height: 220px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+        .blog-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 40%, var(--bg-card) 100%); }
+        .blog-img i { transition: transform 0.5s ease; filter: drop-shadow(0 0 10px rgba(255,255,255,0.3));}
+        .blog-card:hover .blog-img i { transform: scale(1.15); }
+
+        .blog-content { padding: 2rem; display: flex; flex-direction: column; flex: 1; z-index: 2; margin-top: -20px;}
+        .blog-tag { display: inline-flex; align-items: center; justify-content: center; padding: 0.4rem 1rem; border-radius: 30px; background: rgba(0, 245, 255, 0.1); color: var(--accent-primary); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1.5rem; align-self: flex-start; border: 1px solid rgba(0,245,255,0.2);}
+        .blog-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; line-height: 1.4; color: var(--text-main); font-family: 'Outfit', sans-serif; transition: color 0.3s;}
+        .blog-card:hover .blog-title { color: var(--accent-primary); }
+        .blog-excerpt { color: var(--text-muted); font-size: 1.05rem; line-height: 1.6; margin-bottom: 2rem; flex: 1; }
+        .blog-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1.5rem; margin-top: auto;}
+        
+        .blog-author { display: flex; align-items: center; gap: 0.8rem; }
+        .blog-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--gradient-hero); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; color: #fff; box-shadow: 0 0 10px rgba(0,245,255,0.3);}
+        .blog-meta { color: var(--text-muted); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem;}
+        
+        @media (max-width: 768px) {
+            .blog-hero h1 { font-size: 2.5rem; }
+            .blog-hero { padding: 6rem 1rem 2rem; }
+            .blog-grid { grid-template-columns: 1fr; padding: 0 1rem; }
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.1; }
+            100% { transform: scale(1.1); opacity: 0.2; }
+        }
+    </style>
+</head>
+
+<body class="dark-theme">
+    <div class="ocean-mesh"></div>
+    <header class="main-header">
+        <nav class="container">
+            <div class="logo">
+                <i data-lucide="droplets" class="logo-icon"></i>
+                <a href="index.html" style="color: inherit; text-decoration: none;">PromptOcean</a>
+            </div>
+            <ul class="nav-links">
+                <div class="mobile-nav-header">
+                    <div class="logo">
+                        <i data-lucide="droplets" class="logo-icon"></i>
+                        <span>PromptOcean</span>
+                    </div>
+                </div>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="index.html#categories">Categories</a></li>
+                <li><a href="blog.html" class="active">Blog</a></li>
+                <li><a href="pricing.html">Pricing</a></li>
+                <div class="mobile-only-btns">
+                    <button class="btn btn-outline" id="mobile-login-btn">Login</button>
+                    <button class="btn btn-primary" id="mobile-signup-btn">Sign Up</button>
+                </div>
+                <div class="mobile-nav-footer">
+                    <div class="social-links">
+                        <a href="#" aria-label="Twitter"><i data-lucide="twitter"></i></a>
+                        <a href="#" aria-label="Discord"><i data-lucide="message-square"></i></a>
+                        <a href="#" aria-label="GitHub"><i data-lucide="github"></i></a>
+                    </div>
+                </div>
+            </ul>
+            <div class="header-actions">
+                <button class="btn btn-primary" id="sell-prompt-btn" style="margin-right: 8px;">
+                    <i data-lucide="plus"></i> Sell Prompt
+                </button>
+
+                <button class="icon-btn theme-toggle" id="theme-toggle" aria-label="Toggle Theme">
+                    <i data-lucide="moon" class="moon-icon"></i>
+                    <i data-lucide="sun" class="sun-icon"></i>
+                </button>
+                <button class="btn btn-outline" id="login-btn">Login</button>
+                <button class="btn btn-primary" id="signup-btn">Sign Up</button>
+            </div>
+            <button class="mobile-menu-toggle" id="mobile-menu-btn" aria-label="Toggle Menu" style="display: none;">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </nav>
+    </header>
+
+    <main>
+        <section class="blog-hero">
+            <h1>Prompt Engineering <span>Insights</span></h1>
+            <p>Master the art of communicating with AI. Discover guides, news, and the logic behind high-converting prompts.</p>
+        </section>
+
+        <section class="blog-grid">
+            <!-- Article 1 -->
+            <a href="#" class="blog-card">
+                <div class="blog-img" style="background: linear-gradient(135deg, #1e3a8a, #4f46e5);">
+                    <i data-lucide="bot" style="width: 72px; height: 72px; color: rgba(255,255,255,0.9);"></i>
+                </div>
+                <div class="blog-content">
+                    <span class="blog-tag">Strategy</span>
+                    <h3 class="blog-title">The Ultimate Guide to ChatGPT Prompts for Business in 2026</h3>
+                    <p class="blog-excerpt">Learn exactly how to structure your ChatGPT prompts for marketing, sales, and operations to get reliable out-of-the-box results every time.</p>
+                    <div class="blog-footer">
+                        <div class="blog-author">
+                            <div class="blog-avatar">PO</div>
+                            <span style="color: var(--text-main); font-size: 0.9rem; font-weight: 500;">Team PromptOcean</span>
+                        </div>
+                        <div class="blog-meta">
+                            <i data-lucide="clock" style="width: 14px;"></i> 5 min read
+                        </div>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Article 2 -->
+            <a href="#" class="blog-card">
+                <div class="blog-img" style="background: linear-gradient(135deg, #831843, #e11d48);">
+                    <i data-lucide="image" style="width: 72px; height: 72px; color: rgba(255,255,255,0.9);"></i>
+                </div>
+                <div class="blog-content">
+                    <span class="blog-tag">Midjourney</span>
+                    <h3 class="blog-title">Mastering Midjourney V6: Lighting and Camera Angles</h3>
+                    <p class="blog-excerpt">A deep dive into the photographic terms that the latest Midjourney model understands best for rendering photorealistic outputs.</p>
+                    <div class="blog-footer">
+                        <div class="blog-author">
+                            <div class="blog-avatar" style="background: #e11d48;">SC</div>
+                            <span style="color: var(--text-main); font-size: 0.9rem; font-weight: 500;">Sarah Chen</span>
+                        </div>
+                        <div class="blog-meta">
+                            <i data-lucide="clock" style="width: 14px;"></i> 8 min read
+                        </div>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Article 3 -->
+            <a href="#" class="blog-card">
+                <div class="blog-img" style="background: linear-gradient(135deg, #064e3b, #10b981);">
+                    <i data-lucide="code" style="width: 72px; height: 72px; color: rgba(255,255,255,0.9);"></i>
+                </div>
+                <div class="blog-content">
+                    <span class="blog-tag">Development</span>
+                    <h3 class="blog-title">Building AI Agents: System Prompts Explained</h3>
+                    <p class="blog-excerpt">Why your system prompt defines the true behavior of your AI agents, and how to write system prompts that don't jailbreak.</p>
+                    <div class="blog-footer">
+                        <div class="blog-author">
+                            <div class="blog-avatar" style="background: #10b981;">AM</div>
+                            <span style="color: var(--text-main); font-size: 0.9rem; font-weight: 500;">Alex Morgan</span>
+                        </div>
+                        <div class="blog-meta">
+                            <i data-lucide="clock" style="width: 14px;"></i> 6 min read
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </section>
+    </main>
+
+    <!-- Collections Sidebar -->
+    <aside class="collections-sidebar" id="collections-sidebar">
+        <div class="sidebar-header">
+            <h3>My Collections</h3>
+            <button class="icon-btn" id="close-collections"><i data-lucide="x"></i></button>
+        </div>
+        <div class="collections-list" id="collections-list">
+            <div class="collection-item">
+                <i data-lucide="folder"></i>
+                <span>General</span>
+            </div>
+        </div>
+        <button class="btn btn-outline btn-full" style="margin-top: 24px;" id="add-collection-btn">
+            <i data-lucide="plus"></i> Create Folder
+        </button>
+    </aside>
+
+    <footer class="main-footer">
+        <div class="container footer-grid">
+            <div class="footer-brand">
+                <div class="logo">
+                    <i data-lucide="droplets" class="logo-icon"></i>
+                    <span>PromptOcean</span>
+                </div>
+                <p>The ultimate repository for high-quality AI prompts. Copy, test, and share with ease.</p>
+                <div class="social-links">
+                    <a href="#"><i data-lucide="twitter"></i></a>
+                    <a href="#"><i data-lucide="facebook"></i></a>
+                    <a href="#"><i data-lucide="github"></i></a>
+                </div>
+            </div>
+            <div class="footer-links">
+                <h4>Product</h4>
+                <ul>
+                    <li><a href="#categories">Categories</a></li>
+                    <li><a href="#trending">Popular Prompts</a></li>
+                    <li><a href="#">Prompt Playground</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>Community</h4>
+                <ul>
+                    <li><a href="#submit">Submit Prompt</a></li>
+                    <li><a href="#">Discord</a></li>
+                    <li><a href="#">Twitter</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>Company</h4>
+                <ul>
+                    <li><a href="#">About</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Contact</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="container footer-bottom">
+            <p>&copy; 2026 PromptOcean. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="modal-overlay">
+        <!-- Login Modal -->
+        <div class="modal" id="login-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>Welcome Back</h2>
+                <p>Login to your account to save your favorite prompts.</p>
+            </div>
+            <div class="social-login">
+                <button class="btn btn-google btn-full" id="google-login-btn">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="18">
+                    Continue with Google
+                </button>
+            </div>
+            <div class="modal-divider"><span>OR</span></div>
+            <form class="modal-form" id="login-form">
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" placeholder="name@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" placeholder="••••••••" required>
+                    <a href="#" id="forgot-password-link" style="display: block; text-align: right; font-size: 0.85rem; color: var(--accent-primary); margin-top: 5px; text-decoration: none;">Forgot Password?</a>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Login</button>
+            </form>
+            <div class="modal-footer">
+                <p>Don't have an account? <a href="#" id="switch-to-signup">Sign Up</a></p>
+            </div>
+        </div>
+
+        <!-- Signup Modal -->
+        <div class="modal" id="signup-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>Create Account</h2>
+                <p>Join the community and start contributing prompts.</p>
+            </div>
+            <div class="social-login">
+                <button class="btn btn-google btn-full" id="google-signup-btn">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="18">
+                    Sign up with Google
+                </button>
+            </div>
+            <div class="modal-divider"><span>OR</span></div>
+            <form class="modal-form" id="signup-form">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" placeholder="John Doe" required>
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" placeholder="name@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Create Account</button>
+            </form>
+            <div class="modal-footer">
+                <p>Already have an account? <a href="#" id="switch-to-login">Login</a></p>
+            </div>
+        </div>
+
+        <!-- Submit Prompt Modal -->
+        <div class="modal" id="submit-prompt-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>Submit New Prompt</h2>
+                <p>Add a powerful prompt to our curated library.</p>
+            </div>
+            <form class="modal-form" id="new-prompt-form">
+                <div class="form-group">
+                    <label>Prompt Title</label>
+                    <input type="text" id="new-prompt-title" placeholder="e.g. SEO Master" required>
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="new-prompt-category" required>
+                        <option value="ChatGPT">ChatGPT</option>
+                        <option value="Coding">Coding</option>
+                        <option value="Design">Design</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Content Creation">Content Creation</option>
+                        <option value="Brainstorming">Brainstorming</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Prompt Text</label>
+                    <textarea id="new-prompt-text" placeholder="Paste your prompt here..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">🚀 Submit Prompt</button>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Footer Scripts & Modals -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide) lucide.createIcons();
+        });
+    </script>
+
+    <!-- Modal Overlays -->
+    <div class="modal-overlay" id="modal-overlay">
+        <!-- Login Modal -->
+        <div class="modal" id="login-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>Welcome Back</h2>
+                <p>Login to your account to save your favorite prompts.</p>
+            </div>
+            <div class="social-login">
+                <button class="btn btn-google btn-full" id="google-login-btn">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="18">
+                    Continue with Google
+                </button>
+            </div>
+            <div class="modal-divider"><span>OR</span></div>
+            <form class="modal-form" id="login-form">
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" placeholder="name@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" placeholder="••••••••" required>
+                    <a href="#" id="forgot-password-link" style="display: block; text-align: right; font-size: 0.85rem; color: var(--accent-primary); margin-top: 5px; text-decoration: none;">Forgot Password?</a>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Login to PromptOcean</button>
+            </form>
+            <div class="modal-footer">
+                <p>Don't have an account? <a href="#" id="switch-to-signup">Sign up for free</a></p>
+            </div>
+        </div>
+
+        <!-- AI Settings Modal -->
+        <div class="modal" id="ai-settings-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>AI Integration Settings</h2>
+                <p>Configure your own API keys for real-time generation.</p>
+            </div>
+            <div class="alert note" style="margin-bottom: 20px;">
+                <i data-lucide="info"></i>
+                <span>Keys are stored <strong>locally</strong> in your browser and never touch our servers.</span>
+            </div>
+            <form class="modal-form" id="ai-settings-form">
+                <div class="form-group">
+                    <label>OpenAI API Key (ChatGPT)</label>
+                    <input type="password" id="openai-key" placeholder="sk-...">
+                    <small style="color: var(--text-muted);">Get it from <a href="https://platform.openai.com" target="_blank" style="color: var(--accent-primary);">OpenAI Dashboard</a></small>
+                </div>
+                <div class="form-group">
+                    <label>Google Gemini API Key</label>
+                    <input type="password" id="gemini-key" placeholder="AIzaSy...">
+                    <small style="color: var(--text-muted);">Get it from <a href="https://aistudio.google.com" target="_blank" style="color: var(--accent-primary);">AI Studio</a></small>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Save AI Credentials</button>
+            </form>
+        </div>
+
+        <!-- Signup Modal -->
+        <div class="modal" id="signup-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>Create Account</h2>
+                <p>Join the community and start contributing prompts.</p>
+            </div>
+            <div class="social-login">
+                <button class="btn btn-google btn-full" id="google-signup-btn">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="18">
+                    Sign up with Google
+                </button>
+            </div>
+            <div class="modal-divider"><span>OR</span></div>
+            <form class="modal-form" id="signup-form">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" placeholder="John Doe" required>
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" placeholder="name@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Create Account</button>
+            </form>
+            <div class="modal-footer">
+                <p>Already have an account? <a href="#" id="switch-to-login">Login</a></p>
+            </div>
+        </div>
+
+        <!-- Submit Prompt Modal -->
+        <div class="modal" id="submit-prompt-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>Submit New Prompt</h2>
+                <p>Add a powerful prompt to our curated library.</p>
+            </div>
+            <form class="modal-form" id="new-prompt-form">
+                <div class="form-group">
+                    <label>Prompt Title</label>
+                    <input type="text" id="new-prompt-title" placeholder="e.g. SEO Master" required>
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="new-prompt-category" required>
+                        <option value="ChatGPT">ChatGPT</option>
+                        <option value="Coding">Coding</option>
+                        <option value="Design">Design</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Content Creation">Content Creation</option>
+                        <option value="Brainstorming">Brainstorming</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Prompt Text</label>
+                    <textarea id="new-prompt-text" placeholder="Paste your prompt here..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">🚀 Submit Prompt</button>
+            </form>
+        </div>
+    </div>
+</body>
+
+</html>

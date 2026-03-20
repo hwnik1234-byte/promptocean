@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creator Dashboard | PromptOcean</title>
+    <meta name="description" content="Manage your prompts, track earnings, and monitor performance.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="dark-theme">
+    <div class="ocean-mesh"></div>
+    
+    <!-- Header -->
+    <header class="main-header">
+        <nav class="container">
+            <div class="logo">
+                <i data-lucide="droplets" class="logo-icon"></i>
+                <a href="index.html" style="color: inherit; text-decoration: none;">PromptOcean</a>
+            </div>
+            <ul class="nav-links">
+                <div class="mobile-nav-header">
+                    <div class="logo">
+                        <i data-lucide="droplets" class="logo-icon"></i>
+                        <span>PromptOcean</span>
+                    </div>
+                </div>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="create-prompt.html">Create Prompt</a></li>
+                <li><a href="pricing.html">Pricing</a></li>
+                <div class="mobile-only-btns">
+                    <button class="btn btn-outline" id="mobile-login-btn">Login</button>
+                    <button class="btn btn-primary" id="mobile-signup-btn">Sign Up</button>
+                </div>
+                <div class="mobile-nav-footer">
+                    <div class="social-links">
+                        <a href="#" aria-label="Twitter"><i data-lucide="twitter"></i></a>
+                        <a href="#" aria-label="Discord"><i data-lucide="message-square"></i></a>
+                        <a href="#" aria-label="GitHub"><i data-lucide="github"></i></a>
+                    </div>
+                </div>
+            </ul>
+            <div class="header-actions">
+                <button class="btn btn-primary" id="sell-prompt-btn" style="margin-right: 8px;">
+                    <i data-lucide="plus"></i> Sell Prompt
+                </button>
+                <button class="icon-btn theme-toggle" id="theme-toggle" aria-label="Toggle Theme">
+                    <i data-lucide="moon" class="moon-icon"></i>
+                    <i data-lucide="sun" class="sun-icon"></i>
+                </button>
+                <button class="btn btn-outline" id="login-btn">Login</button>
+                <button class="btn btn-primary" id="signup-btn">Sign Up</button>
+            </div>
+            <button class="mobile-menu-toggle" id="mobile-menu-btn" aria-label="Toggle Menu" style="display: none;">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </nav>
+    </header>
+
+    <main class="container">
+        <!-- Dashboard Hero -->
+        <section class="dashboard-hero">
+            <h1>Creator <span>Dashboard</span></h1>
+            <p>Manage your professional prompt portfolio and track your success.</p>
+        </section>
+
+        <!-- Stats Grid -->
+        <div class="stats-container">
+            <div class="stat-glass-card">
+                <span class="stat-label">Total Prompts</span>
+                <div class="stat-value" id="stat-total-prompts">0</div>
+            </div>
+            <div class="stat-glass-card">
+                <span class="stat-label">Total Earnings</span>
+                <div class="stat-value" id="stat-earnings">₹0</div>
+            </div>
+            <div class="stat-glass-card">
+                <span class="stat-label">Approved</span>
+                <div class="stat-value" id="stat-approved">0</div>
+            </div>
+        </div>
+
+        <!-- Prompts Section -->
+        <div class="dashboard-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h2 class="dashboard-section-title"><i data-lucide="layout-list"></i> Your Prompts</h2>
+            <a href="create-prompt.html" class="btn btn-primary btn-sm"><i data-lucide="plus"></i> New Prompt</a>
+        </div>
+
+        <div class="table-glass-wrapper">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Category</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="dashboard-prompts-list">
+                    <tr><td colspan="5" style="text-align:center; padding: 3rem;">Loading your creations...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <!-- standardized Modal Overlay Structure -->
+    <div class="modal-overlay" id="modal-overlay">
+        <!-- Login Modal -->
+        <div class="modal" id="login-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>Welcome Back</h2>
+                <p>Login to your account to save your favorite prompts.</p>
+            </div>
+            <div class="social-login">
+                <button class="btn btn-google btn-full" id="google-login-btn">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="18">
+                    Continue with Google
+                </button>
+            </div>
+            <div class="modal-divider"><span>OR</span></div>
+            <form class="modal-form" id="login-form">
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" placeholder="name@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" placeholder="••••••••" required>
+                    <a href="#" id="forgot-password-link" style="display: block; text-align: right; font-size: 0.85rem; color: var(--accent-primary); margin-top: 5px; text-decoration: none;">Forgot Password?</a>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Login to PromptOcean</button>
+            </form>
+            <div class="modal-footer">
+                <p>Don't have an account? <a href="#" id="switch-to-signup">Sign up for free</a></p>
+            </div>
+        </div>
+
+        <!-- Signup Modal -->
+        <div class="modal" id="signup-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>Create Account</h2>
+                <p>Join the community and start contributing prompts.</p>
+            </div>
+            <div class="social-login">
+                <button class="btn btn-google btn-full" id="google-signup-btn">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="18">
+                    Sign up with Google
+                </button>
+            </div>
+            <div class="modal-divider"><span>OR</span></div>
+            <form class="modal-form" id="signup-form">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" placeholder="John Doe" required>
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" placeholder="name@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Create Account</button>
+            </form>
+            <div class="modal-footer">
+                <p>Already have an account? <a href="#" id="switch-to-login">Login</a></p>
+            </div>
+        </div>
+
+        <!-- AI Settings Modal -->
+        <div class="modal" id="ai-settings-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>AI Integration Settings</h2>
+                <p>Configure your own API keys for real-time generation.</p>
+            </div>
+            <form class="modal-form" id="ai-settings-form">
+                <div class="form-group">
+                    <label>OpenAI API Key (ChatGPT)</label>
+                    <input type="password" id="openai-key" placeholder="sk-...">
+                </div>
+                <div class="form-group">
+                    <label>Google Gemini API Key</label>
+                    <input type="password" id="gemini-key" placeholder="AIzaSy...">
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Save AI Credentials</button>
+            </form>
+        </div>
+
+        <!-- Submit Prompt Modal -->
+        <div class="modal" id="submit-prompt-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <h2>Submit New Prompt</h2>
+                <p>Add a powerful prompt to our curated library.</p>
+            </div>
+            <form class="modal-form" id="new-prompt-form">
+                <div class="form-group">
+                    <label>Prompt Title</label>
+                    <input type="text" id="new-prompt-title" placeholder="e.g. SEO Master" required>
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="new-prompt-category" required>
+                        <option value="ChatGPT">ChatGPT</option>
+                        <option value="Coding">Coding</option>
+                        <option value="Design">Design</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Content Creation">Content Creation</option>
+                        <option value="Brainstorming">Brainstorming</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Prompt Text</label>
+                    <textarea id="new-prompt-text" placeholder="Paste your prompt here..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">🚀 Submit Prompt</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <div class="container footer-grid">
+            <div class="footer-brand">
+                <div class="logo">
+                    <i data-lucide="droplets" class="logo-icon"></i>
+                    <span>PromptOcean</span>
+                </div>
+                <p>The ultimate repository for high-quality AI prompts. Copy, test, and share with ease.</p>
+                <div class="social-links">
+                    <a href="#"><i data-lucide="twitter"></i></a>
+                    <a href="#"><i data-lucide="facebook"></i></a>
+                    <a href="#"><i data-lucide="github"></i></a>
+                </div>
+            </div>
+            <div class="footer-links">
+                <h4>Product</h4>
+                <ul>
+                    <li><a href="index.html#categories">Categories</a></li>
+                    <li><a href="index.html#trending">Popular Prompts</a></li>
+                    <li><a href="index.html#playground">Prompt Playground</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>Community</h4>
+                <ul>
+                    <li><a href="index.html#submit">Submit Prompt</a></li>
+                    <li><a href="#">Discord</a></li>
+                    <li><a href="#">Twitter</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>Company</h4>
+                <ul>
+                    <li><a href="#">About</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Contact</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="container footer-bottom">
+            <p>&copy; 2026 PromptOcean. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!supabaseClient) return;
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (!user) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Fetch Prompts
+            const { data: prompts } = await supabaseClient
+                .from('prompts')
+                .select('*, categories(name)')
+                .eq('created_by', user.id)
+                .order('created_at', { ascending: false });
+
+            const tbody = document.getElementById('dashboard-prompts-list');
+            if (prompts && prompts.length > 0) {
+                tbody.innerHTML = prompts.map(p => `
+                    <tr>
+                        <td style="font-weight: 600;">${p.title}</td>
+                        <td>${p.categories ? p.categories.name : p.category || 'Uncategorized'}</td>
+                        <td style="font-family: 'Outfit'; font-weight: 500;">${p.is_free ? 'Free' : '₹' + p.price}</td>
+                        <td><span class="status-pill ${p.status}">${p.status.toUpperCase()}</span></td>
+                        <td>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-outline btn-sm" onclick="editPrompt('${p.id}')"><i data-lucide="edit-3" style="width:14px;"></i> Edit</button>
+                                <button class="btn btn-outline btn-sm" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.2);" onclick="deletePrompt('${p.id}')"><i data-lucide="trash-2" style="width:14px;"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+
+                document.getElementById('stat-total-prompts').textContent = prompts.length;
+                document.getElementById('stat-approved').textContent = prompts.filter(p => p.status === 'approved').length;
+            } else {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 4rem;">
+                    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">You haven't listed any prompts yet.</p>
+                    <a href="create-prompt.html" class="btn btn-primary"><i data-lucide="plus"></i> Create Your First Prompt</a>
+                </td></tr>`;
+            }
+
+            // Fetch Earnings
+            try {
+                const { data: earnings } = await supabaseClient
+                    .from('creator_earnings')
+                    .select('amount')
+                    .eq('creator_id', user.id);
+                
+                if (earnings) {
+                    const total = earnings.reduce((sum, e) => sum + Number(e.amount), 0);
+                    document.getElementById('stat-earnings').textContent = '₹' + total.toFixed(2);
+                }
+            } catch (e) {}
+
+            if (window.lucide) lucide.createIcons();
+        });
+
+        async function deletePrompt(id) {
+            if(confirm("Are you sure you want to delete this prompt?")) {
+                const { error } = await supabaseClient.from('prompts').delete().eq('id', id);
+                if(error) alert(error.message);
+                else window.location.reload();
+            }
+        }
+        function editPrompt(id) {
+            window.location.href = 'create-prompt.html?edit=' + id;
+        }
+    </script>
+</body>
+</html>
