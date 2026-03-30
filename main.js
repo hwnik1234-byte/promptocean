@@ -1,5 +1,5 @@
 // DOM Elements
-let trendingGrid, latestGrid, searchInput, headerSearchInput, filterSearchInput, headerSearchToggle, headerSearchContainer;
+let trendingGrid, searchInput, headerSearchInput, filterSearchInput, headerSearchToggle, headerSearchContainer;
 let playgroundInput, playgroundBtn, playgroundResult, heroSearchBtn, themeToggle;
 let modalOverlay, loginModal, signupModal, uploadModal, loginBtn, signupBtn, sellPromptBtn, closeButtons, switchToSignup, switchToLogin;
 let categoryFilters, filterButtons, favFilterBtn;
@@ -62,8 +62,27 @@ window.getPromptsWithMeta = async (options = {}) => {
         
         const normalize = (p) => {
             if (!p) return null;
-            const catObj = Array.isArray(p.categories) ? p.categories[0] : p.categories;
-            const profObj = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+            
+            // Handle categories join (Supabase sometimes returns an array for 1:1 joins)
+            let catName = null;
+            const rawCat = p.categories;
+            if (Array.isArray(rawCat) && rawCat.length > 0) {
+                catName = rawCat[0].name;
+            } else if (rawCat && typeof rawCat === 'object') {
+                catName = rawCat.name;
+            }
+
+            // Fallback chain: Join Result -> Legacy 'category' column -> Default
+            const finalCategory = catName || p.category || 'Uncategorized';
+            
+            // Handle profiles join
+            const rawProf = p.profiles;
+            let profObj = null;
+            if (Array.isArray(rawProf) && rawProf.length > 0) {
+                profObj = rawProf[0];
+            } else if (rawProf && typeof rawProf === 'object') {
+                profObj = rawProf;
+            }
             
             if (!profObj && p.created_by) {
                 console.warn(`[Supabase] No profile found for user ID: ${p.created_by}. Check if a row exists in the 'profiles' table for this ID.`);
@@ -75,7 +94,7 @@ window.getPromptsWithMeta = async (options = {}) => {
 
             return {
                 ...p,
-                category: catObj?.name || p.category || 'Uncategorized',
+                category: finalCategory,
                 profiles: profObj || { full_name: 'Community' },
                 creator_name: friendlyName
             };
@@ -92,7 +111,7 @@ window.getPromptsWithMeta = async (options = {}) => {
         if (promptId) fQuery = fQuery.eq('id', promptId);
         if (userId) fQuery = fQuery.eq('created_by', userId); 
         if (status) fQuery = fQuery.in('status', Array.isArray(status) ? status : [status]);
-        fQuery = fQuery.order(orderBy, { ascending }); 
+        query = query.order(orderBy, { ascending }); // Reuse order from main query
         if (limit) fQuery = fQuery.limit(limit);
         
         const { data: fallbackData } = await (promptId ? fQuery.maybeSingle() : fQuery);
@@ -147,7 +166,7 @@ function createPromptCard(prompt) {
         <div class="prompt-card-header">
             <div class="tag-group" style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="prompt-tag">${prompt.categories ? prompt.categories.name : prompt.category || 'Uncategorized'}</span>
+                    <span class="prompt-tag">${prompt.category || 'Uncategorized'}</span>
                     ${!prompt.is_free ? '<span class="pro-badge">PAID</span>' : ''}
                 </div>
                 <a href="creator-profile.html?id=${prompt.created_by}" class="creator-link-sm">
@@ -198,7 +217,7 @@ let renderTimeout = null;
 
 // Render Prompts
 async function renderPrompts(filterData = null, isAppending = false) {
-    if (!trendingGrid || !latestGrid) return;
+    if (!trendingGrid) return;
 
     if (renderTimeout) clearTimeout(renderTimeout);
 
@@ -264,23 +283,17 @@ async function renderPrompts(filterData = null, isAppending = false) {
                 isLoadingMore = false;
             }
 
-            let trending, latest;
+            let trending;
             if (isMarketplace) {
                 trending = finalDisplayData;
-                latest = [];
             } else {
-                trending = sortedData.slice(0, 6);
-                latest = sortedData.slice(6);
+                trending = sortedData.slice(0, 8); // Show more trending on home
             }
 
-            const latestSection = document.querySelector('.latest.container');
-            if (latestSection) latestSection.style.display = latest.length > 0 ? 'block' : 'none';
-
             if (trendingGrid && !isAppending) trendingGrid.innerHTML = '';
-            if (latestGrid && latestGrid !== trendingGrid && !isAppending) latestGrid.innerHTML = '';
 
             if (!isAppending && displayData.length === 0) {
-                const target = trendingGrid || latestGrid;
+                const target = trendingGrid;
                 if (target) target.innerHTML = '<div class="no-results" style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">No prompts found matching your criteria.</div>';
                 return;
             }
@@ -292,15 +305,6 @@ async function renderPrompts(filterData = null, isAppending = false) {
                     card.style.animationDelay = `${i * 0.08}s`;
                     trendingGrid.appendChild(card);
                     setTimeout(() => card.classList.remove('animate-entrance'), 1000 + (i * 80));
-                });
-            }
-            if (latestGrid && latestGrid !== trendingGrid) {
-                latest.forEach((p, i) => {
-                    const card = createPromptCard(p);
-                    card.classList.add('animate-entrance');
-                    card.style.animationDelay = `${(trending.length + i) * 0.08}s`;
-                    latestGrid.appendChild(card);
-                    setTimeout(() => card.classList.remove('animate-entrance'), 1000 + ((trending.length + i) * 80));
                 });
             }
 
@@ -342,7 +346,6 @@ function showSkeletons() {
 
     // Fill grid with 6 skeletons for a better initial layout look
     if (trendingGrid) trendingGrid.innerHTML = skeletonHTML.repeat(6);
-    if (latestGrid && latestGrid !== trendingGrid) latestGrid.innerHTML = skeletonHTML.repeat(6);
 }
 
 function updateRating(id, rating, container) {
@@ -555,29 +558,34 @@ async function handleDemoUnlock(promptId) {
     if (!user) return openModal('login');
 
     try {
+        // Fetch prompt details for price and author
+        const { data: promptData, error: fetchErr } = await supabaseClient
+            .from('prompts')
+            .select('price, created_by, is_free')
+            .eq('id', promptId)
+            .single();
+
+        if (fetchErr) throw fetchErr;
+
+        const price = promptData.is_free ? 0 : (promptData.price || 0);
+
         // Dummy Purchase Insert
         const { error } = await supabaseClient.from('purchases').insert({
             user_id: user.id,
             prompt_id: promptId,
-            amount: 0,
+            amount: price,
             payment_status: 'demo'
         });
 
         if (error) throw error;
 
-        // Fetch prompt author for earnings record
-        const { data: promptData } = await supabaseClient
-            .from('prompts')
-            .select('created_by')
-            .eq('id', promptId)
-            .single();
-
-        if (promptData) {
+        // Insert into creator_earnings
+        if (price > 0) {
             await supabaseClient.from('creator_earnings').insert({
                 creator_id: promptData.created_by,
                 prompt_id: promptId,
-                amount: 0,
-                commission: 0
+                amount: price,
+                commission: 0 // In full version, calculate platform fee here
             });
         }
 
@@ -678,16 +686,18 @@ function openModal(type) {
     const mUpload = uploadModal || document.getElementById('upload-modal');
     const mSubmit = document.getElementById('submit-prompt-modal');
     const mSettings = document.getElementById('ai-settings-modal');
+    const mPro = document.getElementById('pro-upgrade-modal');
 
     // Deactivate all
-    [mLogin, mSignup, mUpload, mSubmit, mSettings].forEach(m => m?.classList.remove('active'));
+    [mLogin, mSignup, mUpload, mSubmit, mSettings, mPro].forEach(m => m?.classList.remove('active'));
 
     const targetModal = {
         'login': mLogin,
         'signup': mSignup,
         'upload': mUpload,
         'submit': mSubmit,
-        'ai-settings': mSettings
+        'ai-settings': mSettings,
+        'pro-upgrade': mPro
     }[type];
 
     if (targetModal) {
@@ -712,7 +722,8 @@ function closeModal() {
         signupModal || document.getElementById('signup-modal'),
         uploadModal || document.getElementById('upload-modal'),
         document.getElementById('submit-prompt-modal'),
-        document.getElementById('ai-settings-modal')
+        document.getElementById('ai-settings-modal'),
+        document.getElementById('pro-upgrade-modal')
     ];
     modals.forEach(m => m?.classList.remove('active'));
 }
@@ -1083,10 +1094,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Consolidated Playground & AI Logic ---
     const compareToggle = document.getElementById('playground-compare-toggle');
+    const compareToggleGroup = document.getElementById('playground-compare-toggle-group');
     const model2Group = document.getElementById('playground-model-2-group');
     const resultContainer = document.getElementById('playground-result-container');
 
     compareToggle?.addEventListener('change', (e) => {
+        const isPro = userSubscription && userSubscription.plan_name === 'Pro' && userSubscription.status === 'active';
+        
+        if (e.target.checked && !isPro) {
+            e.target.checked = false;
+            openModal('pro-upgrade');
+            return;
+        }
+
         if (e.target.checked) {
             model2Group?.classList.add('active');
             resultContainer?.classList.add('comparing');
@@ -1119,6 +1139,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const model1 = document.getElementById('playground-model')?.value || 'optimized';
         const isComparing = compareToggle?.checked;
+        const isPro = userSubscription && userSubscription.plan_name === 'Pro' && userSubscription.status === 'active';
+
+        // Secondary safety check for Pro models
+        if (!isPro && (model1 !== 'optimized' || isComparing)) {
+            openModal('pro-upgrade');
+            return;
+        }
 
         try {
             if (isComparing) {
@@ -1253,9 +1280,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Save to history (only if 1st result or main result)
         if (targetId === 'playground-result') {
+            const isPro = userSubscription && userSubscription.plan_name === 'Pro' && userSubscription.status === 'active';
+            const historyLimit = isPro ? 15 : 3;
+            
             const history = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
             history.unshift({ topic: originalTopic, result: text, date: new Date().toISOString(), model: platform });
-            localStorage.setItem('playgroundHistory', JSON.stringify(history.slice(0, 10)));
+            localStorage.setItem('playgroundHistory', JSON.stringify(history.slice(0, historyLimit)));
             renderPlaygroundHistory();
         }
     }
@@ -1292,9 +1322,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (targetId === 'playground-result') {
                     // Save to history
+                    const isPro = userSubscription && userSubscription.plan_name === 'Pro' && userSubscription.status === 'active';
+                    const historyLimit = isPro ? 15 : 3;
+
                     const history = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
                     history.unshift({ topic, tone, format, date: new Date().toISOString() });
-                    localStorage.setItem('playgroundHistory', JSON.stringify(history.slice(0, 5)));
+                    localStorage.setItem('playgroundHistory', JSON.stringify(history.slice(0, historyLimit)));
                     renderPlaygroundHistory();
                 }
 
@@ -1535,17 +1568,7 @@ function initInfiniteScroll() {
         }, { passive: false });
     }
 
-    // Export JSON logic
-    document.getElementById('export-json-btn')?.addEventListener('click', () => {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allPrompts, null, 2));
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", "prompthive-export.json");
-        document.body.appendChild(downloadAnchorNode);
-        downloadAnchorNode.click();
-        downloadAnchorNode.remove();
-        alert('Prompt library exported as JSON!');
-    });
+
 
     // Login Form Submit
     document.getElementById('login-form')?.addEventListener('submit', (e) => {
@@ -1570,6 +1593,7 @@ function initInfiniteScroll() {
 
     // Subscription buttons
     document.getElementById('buy-pro-btn')?.addEventListener('click', initiateRazorpayPayment);
+    document.getElementById('pro-upgrade-btn')?.addEventListener('click', initiateRazorpayPayment);
 
     // Global click listener for Prompt Card Actions (Event Delegation)
     document.addEventListener('click', (e) => {
@@ -1729,6 +1753,14 @@ function initCustomSelects() {
         
         options.forEach(option => {
             option.addEventListener('click', () => {
+                const isPro = userSubscription && userSubscription.plan_name === 'Pro' && userSubscription.status === 'active';
+                const needsPro = option.getAttribute('data-pro') === 'true';
+
+                if (needsPro && !isPro) {
+                    openModal('pro-upgrade');
+                    return;
+                }
+
                 const value = option.getAttribute('data-value');
                 const content = option.innerHTML;
                 

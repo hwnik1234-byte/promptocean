@@ -123,9 +123,12 @@
                 <span class="stat-label" style="display: block; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Total Prompts</span>
                 <div class="stat-value" id="stat-total-prompts" style="font-size: 2rem; font-weight: 700; color: var(--accent-primary);">0</div>
             </div>
-            <div class="stat-glass-card" style="padding: 1.5rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; text-align: center;">
-                <span class="stat-label" style="display: block; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Total Earnings</span>
-                <div class="stat-value" id="stat-earnings" style="font-size: 2rem; font-weight: 700; color: var(--accent-primary);">₹0</div>
+            <div class="stat-glass-card" style="padding: 1.5rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;">
+                <span class="stat-label" style="display: block; color: var(--text-muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Total Earnings</span>
+                <div class="stat-value" id="stat-earnings" style="font-size: 2.2rem; font-weight: 800; color: var(--accent-primary); font-family: 'Outfit';">₹0.00</div>
+                <button class="btn btn-outline btn-sm" id="withdraw-btn" style="border-radius: 12px; padding: 6px 16px; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; margin-top: 5px;">
+                    <i data-lucide="wallet" style="width: 14px;"></i> Withdraw Funds
+                </button>
             </div>
             <div class="stat-glass-card" style="padding: 1.5rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; text-align: center;">
                 <span class="stat-label" style="display: block; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Approved</span>
@@ -287,6 +290,46 @@
                 <button type="submit" class="btn btn-primary btn-full">🚀 Submit Prompt</button>
             </form>
         </div>
+
+        <!-- Withdrawal Modal -->
+        <div class="modal" id="withdrawal-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="modal-header">
+                <div style="width: 48px; height: 48px; background: var(--gradient-hero); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; margin: 0 auto 1rem;">
+                    <i data-lucide="banknote" style="width: 24px;"></i>
+                </div>
+                <h2>Withdraw Funds</h2>
+                <p>Request a payout of your total earnings securely.</p>
+            </div>
+            <div class="alert note" style="margin-bottom: 20px; background: rgba(0, 245, 255, 0.05); border: 1px solid rgba(0, 245, 255, 0.1);">
+                <i data-lucide="info"></i>
+                <span style="font-size: 0.85rem;">Minimum withdrawal amount is <strong>₹100</strong>. Payouts are processed within 3-5 business days.</span>
+            </div>
+            <form class="modal-form" id="withdrawal-form">
+                <div class="form-group">
+                    <label style="font-weight: 600; color: var(--text-muted);">Amount to Withdraw (₹)</label>
+                    <input type="number" id="withdraw-amount" placeholder="e.g. 500" min="100" required 
+                           style="width: 100%; padding: 0.8rem 1rem; background: var(--bg-code); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-main); font-family: 'Outfit'; font-size: 1.1rem;">
+                </div>
+                <div class="form-group">
+                    <label style="font-weight: 600; color: var(--text-muted);">Payment Method</label>
+                    <select id="withdraw-method" required 
+                            style="width: 100%; padding: 0.8rem 1rem; background: var(--bg-code); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-main); cursor: pointer;">
+                        <option value="UPI">UPI (Google Pay, PhonePe, Paytm)</option>
+                        <option value="Bank">Bank Transfer (IMPS/NEFT)</option>
+                        <option value="PayPal">PayPal (Global)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="font-weight: 600; color: var(--text-muted);">Payment Details (ID/Email/Number)</label>
+                    <input type="text" id="withdraw-details" placeholder="e.g. yourname@okaxis" required
+                           style="width: 100%; padding: 0.8rem 1rem; background: var(--bg-code); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-main);">
+                </div>
+                <button type="submit" class="btn btn-primary btn-full" id="confirm-withdraw-btn" style="padding: 1rem; font-weight: 700; margin-top: 1rem;">
+                    Confirm Payout Request
+                </button>
+            </form>
+        </div>
     </div>
 
     <!-- Footer -->
@@ -343,6 +386,29 @@
                 window.location.href = 'index.html';
                 return;
             }
+
+            let totalEarnings = 0;
+
+            // --- Modal Helpers ---
+            const withdrawBtn = document.getElementById('withdraw-btn');
+            const withdrawModal = document.getElementById('withdrawal-modal');
+            const modalOverlay = document.getElementById('modal-overlay');
+            const closeButtons = document.querySelectorAll('.modal-close');
+
+            if (withdrawBtn) {
+                withdrawBtn.addEventListener('click', () => {
+                    modalOverlay.classList.add('active');
+                    withdrawModal.classList.add('active');
+                    if (window.lucide) lucide.createIcons();
+                });
+            }
+
+            closeButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    modalOverlay.classList.remove('active');
+                    document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+                });
+            });
 
             // --- Profile Settings Logic ---
             const profNameInput = document.getElementById('prof-display-name');
@@ -464,10 +530,61 @@
                     .eq('creator_id', user.id);
                 
                 if (earnings) {
-                    const total = earnings.reduce((sum, e) => sum + Number(e.amount), 0);
-                    document.getElementById('stat-earnings').textContent = '₹' + total.toFixed(2);
+                    totalEarnings = earnings.reduce((sum, e) => sum + Number(e.amount), 0);
+                    document.getElementById('stat-earnings').textContent = '₹' + totalEarnings.toFixed(2);
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.error('Earnings fetch error:', e);
+            }
+
+            // --- Withdrawal Form Logic ---
+            const withdrawalForm = document.getElementById('withdrawal-form');
+            if (withdrawalForm) {
+                withdrawalForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const amount = Number(document.getElementById('withdraw-amount').value);
+                    const method = document.getElementById('withdraw-method').value;
+                    const details = document.getElementById('withdraw-details').value;
+                    const confirmBtn = document.getElementById('confirm-withdraw-btn');
+
+                    if (amount > totalEarnings) {
+                        alert(`Incomplete funds. Your maximum withdrawal is ₹${totalEarnings.toFixed(2)}`);
+                        return;
+                    }
+
+                    if (amount < 100) {
+                        alert('Minimum withdrawal is ₹100.');
+                        return;
+                    }
+
+                    confirmBtn.disabled = true;
+                    confirmBtn.textContent = 'Processing...';
+
+                    try {
+                        const { error } = await supabaseClient.from('withdrawals').insert({
+                            user_id: user.id,
+                            amount: amount,
+                            payment_method: method,
+                            payment_details: details,
+                            status: 'pending',
+                            created_at: new Date().toISOString()
+                        });
+
+                        if (error) throw error;
+
+                        alert('Withdrawal request submitted successfully! Your funds will be processed soon.');
+                        modalOverlay.classList.remove('active');
+                        withdrawModal.classList.remove('active');
+                        withdrawalForm.reset();
+                    } catch (err) {
+                        console.error('Withdrawal error:', err);
+                        alert('Failed to submit request: ' + err.message);
+                    } finally {
+                        confirmBtn.disabled = false;
+                        confirmBtn.textContent = 'Confirm Payout Request';
+                    }
+                });
+            }
 
             if (window.lucide) lucide.createIcons();
         });

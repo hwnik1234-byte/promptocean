@@ -186,9 +186,10 @@
             <div class="section-header">
                 <h2 class="section-title">All Prompts <span class="title-accent">Marketplace</span> 🔥</h2>
                 <div class="header-btns">
-                    <button class="btn btn-outline btn-sm" id="export-json-btn"><i data-lucide="download"></i> Export
-                        JSON</button>
-                    <a href="prompts.html" class="view-all">View All</a>
+                    <a href="prompts.html" class="btn btn-outline btn-sm">
+                        <span>View All Prompts</span>
+                        <i data-lucide="arrow-right"></i>
+                    </a>
                 </div>
             </div>
             <div class="prompt-grid" id="trending-grid">
@@ -287,8 +288,14 @@
                                         <div class="select-menu">
                                             <div class="select-option selected" data-value="optimized">✨ Prompt
                                                 Optimizer</div>
-                                            <div class="select-option" data-value="gpt-4o">🤖 ChatGPT (GPT-4o)</div>
-                                            <div class="select-option" data-value="gemini-pro">♊ Gemini Pro</div>
+                                            <div class="select-option" data-value="gpt-4o" data-pro="true">
+                                                <span>🤖 ChatGPT (GPT-4o)</span>
+                                                <span class="pro-badge-sm">PRO</span>
+                                            </div>
+                                            <div class="select-option" data-value="gemini-pro" data-pro="true">
+                                                <span>♊ Gemini Pro</span>
+                                                <span class="pro-badge-sm">PRO</span>
+                                            </div>
                                         </div>
                                     </div>
                                     <!-- <button class="icon-btn" id="ai-settings-btn" title="AI Settings">
@@ -300,7 +307,8 @@
                             <!-- Compare Toggle -->
                             <div class="control-group">
                                 <label style="display: block; height: 1.25rem;">&nbsp;</label>
-                                <label class="toggle-group" for="playground-compare-toggle">
+                                <label class="toggle-group" id="playground-compare-toggle-group"
+                                    for="playground-compare-toggle">
                                     <input type="checkbox" id="playground-compare-toggle" style="display: none;">
                                     <div class="toggle-switch"></div>
                                     <span class="toggle-label">COMPARE MODE</span>
@@ -317,9 +325,16 @@
                                         <i data-lucide="chevron-down"></i>
                                     </div>
                                     <div class="select-menu">
-                                        <div class="select-option" data-value="optimized">✨ Prompt Optimizer</div>
-                                        <div class="select-option" data-value="gpt-4o">🤖 ChatGPT (GPT-4o)</div>
-                                        <div class="select-option selected" data-value="gemini-pro">♊ Gemini Pro</div>
+                                        <div class="select-option" data-value="optimized" data-pro="false">✨ Prompt
+                                            Optimizer</div>
+                                        <div class="select-option" data-value="gpt-4o" data-pro="true">
+                                            <span>🤖 ChatGPT (GPT-4o)</span>
+                                            <span class="pro-badge-sm">PRO</span>
+                                        </div>
+                                        <div class="select-option selected" data-value="gemini-pro" data-pro="true">
+                                            <span>♊ Gemini Pro</span>
+                                            <span class="pro-badge-sm">PRO</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -352,15 +367,7 @@
         </section>
 
         <!-- 7. Latest Prompts -->
-        <section class="latest container" data-aos="fade-up">
-            <div class="section-header">
-                <h2 class="section-title">Latest Prompts</h2>
-                <a href="prompts.html?sort=recent" class="view-all">View Recent</a>
-            </div>
-            <div class="prompt-grid" id="latest-grid">
-                <!-- Prompt cards will be injected by JS -->
-            </div>
-        </section>
+
 
         <!-- Pricing Section -->
         <section id="pricing" class="pricing container" data-aos="fade-up">
@@ -632,6 +639,44 @@
                 </div>
                 <button type="submit" class="btn btn-primary btn-full">🚀 Submit Prompt</button>
             </form>
+        </div>
+
+        <!-- Pro Upgrade Modal -->
+        <div class="modal pro-upgrade-modal" id="pro-upgrade-modal">
+            <button class="modal-close"><i data-lucide="x"></i></button>
+            <div class="pro-upgrade-icon">
+                <i data-lucide="zap" style="width: 32px; height: 32px;"></i>
+            </div>
+            <div class="modal-header">
+                <h2>Unlock Pro Playground Features</h2>
+                <p>This feature is available exclusively for <strong>Pro Ocean</strong> members.</p>
+            </div>
+
+            <div class="pro-upgrade-features">
+                <div class="pro-feature-item">
+                    <i data-lucide="check-circle-2"></i>
+                    <span>Access to GPT-4o & Gemini Pro Models</span>
+                </div>
+                <div class="pro-feature-item">
+                    <i data-lucide="check-circle-2"></i>
+                    <span>Advanced Side-by-Side Compare Mode</span>
+                </div>
+                <div class="pro-feature-item">
+                    <i data-lucide="check-circle-2"></i>
+                    <span>Unlimited Generation History</span>
+                </div>
+                <div class="pro-feature-item">
+                    <i data-lucide="check-circle-2"></i>
+                    <span>Priority Generation Speed</span>
+                </div>
+            </div>
+
+            <button class="btn btn-primary btn-full" id="pro-upgrade-btn">
+                Upgrade to Pro - ₹499/mo
+            </button>
+            <p style="margin-top: 16px; font-size: 0.8rem; color: var(--text-muted);">
+                1-click upgrade. Cancel anytime.
+            </p>
         </div>
     </div>
 

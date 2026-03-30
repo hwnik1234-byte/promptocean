@@ -373,6 +373,7 @@ h4 {
 .btn-primary {
     background: var(--gradient-hero);
     color: white;
+    text-decoration: none;
 }
 
 .btn-primary:hover {
@@ -411,6 +412,7 @@ h4 {
     background: rgba(255, 255, 255, 0.05);
     color: var(--text-main);
     border: 1px solid var(--border-color);
+    text-decoration: none;
 }
 
 .btn-white {
@@ -632,7 +634,6 @@ body.light-theme .hero-bg-glow {
 /* Sections General */
 .section-title {
     font-size: 2rem;
-    margin-bottom: 32px;
 }
 
 .section-header {
@@ -744,7 +745,7 @@ body.light-theme .hero-bg-glow {
         flex-direction: column;
         gap: 16px;
     }
-    
+
     .page-numbers {
         order: -1;
     }
@@ -1135,6 +1136,7 @@ textarea:focus {
 .btn-sm {
     padding: 6px 12px;
     font-size: 0.85rem;
+    text-decoration: none;
 }
 
 /* Submit Section */
@@ -3130,6 +3132,7 @@ body.light-theme .premium-table td {
     letter-spacing: 0.5px;
     font-size: 1rem;
 }
+
 /* --- Smooth Listing & Interactive Animations --- */
 @keyframes cardEntrance {
     0% {
@@ -3137,6 +3140,7 @@ body.light-theme .premium-table td {
         transform: translateY(30px) scale(0.95);
         filter: blur(4px);
     }
+
     100% {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -3171,14 +3175,12 @@ body.light-theme .premium-table td {
     bottom: 0;
     left: 0;
     transform: translateX(-100%);
-    background: linear-gradient(
-        90deg,
-        transparent 0%,
-        rgba(255, 255, 255, 0.03) 20%,
-        rgba(255, 255, 255, 0.08) 50%,
-        rgba(255, 255, 255, 0.03) 80%,
-        transparent 100%
-    );
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.03) 20%,
+            rgba(255, 255, 255, 0.08) 50%,
+            rgba(255, 255, 255, 0.03) 80%,
+            transparent 100%);
     animation: shimmer 1.8s infinite;
 }
 
@@ -3194,10 +3196,28 @@ body.light-theme .premium-table td {
     margin-bottom: 15px;
 }
 
-.skeleton-line.tag { width: 80px; height: 24px; border-radius: 12px; }
-.skeleton-line.title { width: 70%; height: 32px; margin-top: 20px; }
-.skeleton-line.preview { width: 100%; height: 60px; }
-.skeleton-line.footer { width: 100%; height: 40px; margin-top: auto; }
+.skeleton-line.tag {
+    width: 80px;
+    height: 24px;
+    border-radius: 12px;
+}
+
+.skeleton-line.title {
+    width: 70%;
+    height: 32px;
+    margin-top: 20px;
+}
+
+.skeleton-line.preview {
+    width: 100%;
+    height: 60px;
+}
+
+.skeleton-line.footer {
+    width: 100%;
+    height: 40px;
+    margin-top: auto;
+}
 
 /* Loader Transitions */
 #loading-indicator {
@@ -3220,6 +3240,7 @@ body.light-theme .premium-table td {
     width: 80px;
     height: 80px;
 }
+
 .loader-ripple div {
     position: absolute;
     border: 4px solid var(--accent-primary);
@@ -3227,9 +3248,11 @@ body.light-theme .premium-table td {
     border-radius: 50%;
     animation: loader-ripple 1s cubic-bezier(0, 0.2, 0.8, 1) infinite;
 }
+
 .loader-ripple div:nth-child(2) {
     animation-delay: -0.5s;
 }
+
 @keyframes loader-ripple {
     0% {
         top: 36px;
@@ -3238,6 +3261,7 @@ body.light-theme .premium-table td {
         height: 0;
         opacity: 0;
     }
+
     4.9% {
         top: 36px;
         left: 36px;
@@ -3245,6 +3269,7 @@ body.light-theme .premium-table td {
         height: 0;
         opacity: 0;
     }
+
     5% {
         top: 36px;
         left: 36px;
@@ -3252,6 +3277,7 @@ body.light-theme .premium-table td {
         height: 0;
         opacity: 1;
     }
+
     100% {
         top: 0px;
         left: 0px;
@@ -3262,7 +3288,8 @@ body.light-theme .premium-table td {
 }
 
 .btn-copy-success {
-    background: #10b981 !important; /* Emerald 500 */
+    background: #10b981 !important;
+    /* Emerald 500 */
     color: white !important;
     border-color: #10b981 !important;
     transform: scale(1.05);
@@ -3396,13 +3423,13 @@ body.light-theme .premium-table td {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-#playground-compare-toggle:checked + .toggle-switch {
+#playground-compare-toggle:checked+.toggle-switch {
     background: var(--gradient-hero);
     border-color: rgba(255, 255, 255, 0.2);
     box-shadow: 0 0 15px rgba(0, 245, 255, 0.3);
 }
 
-#playground-compare-toggle:checked + .toggle-switch::after {
+#playground-compare-toggle:checked+.toggle-switch::after {
     left: 23px;
     background: white;
 }
