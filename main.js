@@ -107,116 +107,11 @@ window.getPromptsWithMeta = async (options = {}) => {
 
 // Data for Prompts
 // Data for Prompts (Fallback/Demo Data)
-const trendingPrompts = [
-    {
-        id: "static-1",
-        title: "YouTube Script Generator",
-        description: "Generate a viral video script with a high-retention hook.",
-        content: "Write a professional YouTube script about [topic]. Include a strong hook, three main points, and a [CTA] call-to-action.",
-        category: "Content Creation",
-        saves_count: 1205,
-        rating: 4.8,
-        is_free: true,
-        created_by: "system-1"
-    },
-    {
-        id: "static-2",
-        title: "Master Code Debugger",
-        description: "Find and fix bugs in your code with detailed explanations.",
-        content: "I have a bug in my [language] code snippet: [code]. Please explain the error and provide a optimized solution.",
-        category: "Coding",
-        saves_count: 840,
-        rating: 4.9,
-        is_free: true,
-        created_by: "system-1"
-    },
-    {
-        id: "static-3",
-        title: "SEO Blog Post Writer",
-        description: "Write long-form articles optimized for search engines.",
-        content: "Create a 1000-word blog post on [topic] targeting the keyword '[keyword]'. Use a [tone] tone.",
-        category: "Marketing",
-        saves_count: 2100,
-        rating: 4.7,
-        is_free: true,
-        created_by: "system-2"
-    },
-    {
-        id: "static-4",
-        title: "SaaS Idea Validator",
-        description: "Validate your startup ideas before building them.",
-        content: "Act as a venture capitalist. Validate this SaaS idea: [Idea]. Analyze market fit, potential competitors, and [monetization] strategies.",
-        category: "Brainstorming",
-        saves_count: 650,
-        rating: 4.6,
-        is_free: false,
-        price: 499,
-        created_by: "system-2"
-    },
-    {
-        id: "static-5",
-        title: "Modern Logo Designer",
-        description: "Generate high-quality DALL-E/Midjourney logo prompts.",
-        content: "A professional, minimalist logo for a [industry] company. Style: [style], Palette: [colors]. High detail, vector style.",
-        category: "Design",
-        saves_count: 980,
-        rating: 4.5,
-        is_free: false,
-        price: 299,
-        created_by: "system-3"
-    },
-    {
-        id: "static-6",
-        title: "LinkedIn Post Hook",
-        description: "Turn your thoughts into engaging LinkedIn content.",
-        content: "Write a high-engagement LinkedIn post based on this insight: [Knowledge]. Format: [Format]. Target audience: [Persona].",
-        category: "Content Creation",
-        saves_count: 1540,
-        rating: 4.8,
-        is_free: true,
-        created_by: "system-1"
-    }
-];
+// Data for Prompts (Exclusively from Supabase)
+const trendingPrompts = [];
+const latestPrompts = [];
 
-const latestPrompts = [
-    {
-        id: "static-7",
-        title: "Email Outreach Master",
-        description: "High-conversion cold email templates for any industry.",
-        content: "Write a cold email sequence for a product launch in the [industry] niche. Include [number] follow-ups.",
-        category: "Marketing",
-        saves_count: 120,
-        rating: 4.4,
-        is_free: true,
-        created_by: "system-3"
-    },
-    {
-        id: "static-8",
-        title: "React Unit Test Bot",
-        description: "Generate comprehensive Jest/Vitest tests for React components.",
-        content: "Generate unit tests for the following React component using [library]: [code]. Consider edge cases for [feature].",
-        category: "Coding",
-        saves_count: 45,
-        rating: 4.9,
-        is_free: false,
-        price: 599,
-        created_by: "system-1"
-    },
-    {
-        id: "static-9",
-        title: "Interior Moodboard",
-        description: "Describe detailed interior design concepts.",
-        content: "Create a professional moodboard description for a [room] in [style] style. Highlight [material] and [color] as key elements.",
-        category: "Design",
-        saves_count: 88,
-        rating: 4.7,
-        is_free: false,
-        price: 199,
-        created_by: "system-3"
-    }
-];
-
-let allPrompts = [...trendingPrompts, ...latestPrompts];
+let allPrompts = [];
 window.favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
 let collections = JSON.parse(localStorage.getItem('collections') || '["Favorites", "Work", "Personal"]');
 let aiSettings = JSON.parse(localStorage.getItem('aiSettings') || '{"openai": "", "gemini": ""}');
@@ -323,16 +218,7 @@ async function renderPrompts(filterData = null, isAppending = false) {
     let displayData = filterData;
     if (!displayData && supabaseClient) {
         displayData = await window.getPromptsWithMeta({ status: ['approved', 'APPROVED', 'Approved'] });
-        
-        // Re-merge with static for marketplace
-        const dbIds = (displayData || []).map(p => p.id);
-        const staticPrompts = [...trendingPrompts, ...latestPrompts].map(p => ({
-            ...p,
-            category: p.category || 'Uncategorized'
-        }));
-        const uniqueStatic = staticPrompts.filter(p => !dbIds.includes(p.id));
-        displayData = [...(displayData || []), ...uniqueStatic];
-        allPrompts = displayData;
+        allPrompts = displayData || [];
     }
 
     if (!displayData) displayData = allPrompts;
