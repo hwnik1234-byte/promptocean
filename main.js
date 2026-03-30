@@ -475,6 +475,7 @@ window.toggleFavorite = async function (id, btn) {
     if (client) {
         const { data: { user } } = await client.auth.getUser();
         if (user) {
+            // First, update the favorites table
             if (isFav) {
                 await client.from('favorites').delete().eq('user_id', user.id).eq('prompt_id', id);
                 window.favorites = favorites.filter(favId => favId !== id);
@@ -485,20 +486,22 @@ window.toggleFavorite = async function (id, btn) {
                 btn?.classList.add('active');
             }
 
+            // Sync saves_count in prompts table
+            try {
+                const { data: p } = await client.from('prompts').select('saves_count').eq('id', id).maybeSingle();
+                if (p) {
+                    const newCount = isFav ? Math.max(0, (p.saves_count || 0) - 1) : (p.saves_count || 0) + 1;
+                    await client.from('prompts').update({ saves_count: newCount }).eq('id', id);
+                }
+            } catch (syncErr) {
+                console.warn("[Database Sync] Failed to update saves_count:", syncErr);
+            }
+
             // Update local storage
             localStorage.setItem('favorites', JSON.stringify(window.favorites));
 
             // Dynamically update UI count on main page if elements exist
-            const card = document.querySelector(`.prompt-card[data-id="${id}"]`);
-            if (card) {
-                const countSpan = card.querySelector('.prompt-stats > span:last-child');
-                if (countSpan) {
-                    let currentCount = parseInt(countSpan.textContent.replace(/[^0-9]/g, '')) || 0;
-                    currentCount = isFav ? Math.max(0, currentCount - 1) : currentCount + 1;
-                    countSpan.innerHTML = `<i data-lucide="save"></i> ${currentCount}`;
-                    if (window.lucide) lucide.createIcons();
-                }
-            }
+            updateUICount(id, isFav);
         } else {
             handleLocalFavorite(id, btn);
         }
@@ -511,8 +514,9 @@ async function toggleFavorite(id, btn) {
     return window.toggleFavorite(id, btn);
 }
 
-window.handleLocalFavorite = function (id, btn) {
-    if (window.favorites.includes(id)) {
+window.handleLocalFavorite = async function (id, btn) {
+    const isAlreadyFav = window.favorites.includes(id);
+    if (isAlreadyFav) {
         window.favorites = window.favorites.filter(favId => favId !== id);
         btn?.classList.remove('active');
     } else {
@@ -520,6 +524,35 @@ window.handleLocalFavorite = function (id, btn) {
         btn?.classList.add('active');
     }
     localStorage.setItem('favorites', JSON.stringify(window.favorites));
+
+    // Try to update database saves_count anonymously
+    if (window.supabaseClient) {
+        try {
+            const { data: p } = await window.supabaseClient.from('prompts').select('saves_count').eq('id', id).maybeSingle();
+            if (p) {
+                const newCount = isAlreadyFav ? Math.max(0, (p.saves_count || 0) - 1) : (p.saves_count || 0) + 1;
+                await window.supabaseClient.from('prompts').update({ saves_count: newCount }).eq('id', id);
+            }
+        } catch (syncErr) {
+            console.warn("[Local Sync] Failed to update global saves_count:", syncErr);
+        }
+    }
+    
+    updateUICount(id, isAlreadyFav);
+}
+
+// Helper to update UI count immediately
+function updateUICount(id, previouslyFavorited) {
+    const card = document.querySelector(`.prompt-card[data-id="${id}"]`);
+    if (card) {
+        const countSpan = card.querySelector('.prompt-stats > span:last-child');
+        if (countSpan) {
+            let currentCount = parseInt(countSpan.textContent.replace(/[^0-9]/g, '')) || 0;
+            currentCount = previouslyFavorited ? Math.max(0, currentCount - 1) : currentCount + 1;
+            countSpan.innerHTML = `<i data-lucide="save"></i> ${currentCount}`;
+            if (window.lucide) lucide.createIcons();
+        }
+    }
 }
 
 function handleLocalFavorite(id, btn) {
