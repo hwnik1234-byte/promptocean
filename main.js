@@ -1,8 +1,12 @@
 // DOM Elements
-let trendingGrid, latestGrid, searchInput, headerSearchInput, headerSearchToggle, headerSearchContainer;
+let trendingGrid, latestGrid, searchInput, headerSearchInput, filterSearchInput, headerSearchToggle, headerSearchContainer;
 let playgroundInput, playgroundBtn, playgroundResult, heroSearchBtn, themeToggle;
 let modalOverlay, loginModal, signupModal, uploadModal, loginBtn, signupBtn, sellPromptBtn, closeButtons, switchToSignup, switchToLogin;
 let categoryFilters, filterButtons, favFilterBtn;
+let currentPage = 1;
+const itemsPerPage = 6;
+let isLoadingMore = false;
+let hasMorePrompts = true;
 
 // --- SUPABASE & RAZORPAY CONFIGURATION ---
 const SUPABASE_URL = 'https://kzcoqpmmytqkipntrerc.supabase.co';
@@ -10,34 +14,210 @@ const SUPABASE_ANON_KEY = 'sb_publishable_y6M0kkVki3wQXBjIoOYR0w_GVCVuU7K';
 const RAZORPAY_KEY_ID = 'rzp_test_YourKeyHere'; // Replace with actual Razorpay Key ID
 
 let supabaseClient = null;
-if (SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+if (SUPABASE_URL !== 'YOUR_SUPABASE_URL' && window.supabase) {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} else if (!window.supabase) {
+    console.warn('Supabase library not detected. Some features may be limited.');
 }
 window.supabaseClient = supabaseClient; // Make it global for other pages to access
 
 let userSubscription = { plan_name: 'Free', status: 'inactive' };
 let userPurchases = []; // Array of prompt IDs purchased
+
+// Connection Test
+if (supabaseClient) {
+    supabaseClient.from('categories').select('count', { count: 'exact', head: true })
+        .then(({ count, error }) => {
+            if (error) {
+                console.error('%c[Supabase Connection Test] FAILED:', 'color: #ff4444; font-weight: bold;', error.message);
+                console.warn('%c[Advice] Your local API Key is likely WRONG.', 'color: #ffa500; font-weight: bold;');
+                console.warn('The live site works, so you should copy the "anon" key from your live site or Supabase dashboard.');
+            } else {
+                console.log('%c[Supabase Connection Test] SUCCESS:', 'color: #00ff88; font-weight: bold;', 'Connected to Project.');
+            }
+        });
+}
 // ------------------------------
 
+// Global helper to fetch prompts with their metadata
+window.getPromptsWithMeta = async (options = {}) => {
+    if (!supabaseClient) return null;
+    const { userId, promptId, status, limit, orderBy = 'created_at', ascending = false } = options;
+    
+    try {
+        // We try to get everything in one go. If RLS or columns are missing, we'll catch the error.
+        let query = supabaseClient.from('prompts').select(`
+            *, 
+            categories!category_id(id, name), 
+            profiles!created_by(id, full_name, username, avatar_url)
+        `);
+        
+        if (promptId) query = query.eq('id', promptId);
+        if (userId) query = query.eq('created_by', userId);
+        if (status) query = query.in('status', Array.isArray(status) ? status : [status]);
+        if (limit) query = query.limit(limit);
+        query = query.order(orderBy, { ascending });
+        
+        const { data, error } = await (promptId ? query.maybeSingle() : query);
+        
+        const normalize = (p) => {
+            if (!p) return null;
+            const catObj = Array.isArray(p.categories) ? p.categories[0] : p.categories;
+            const profObj = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+            
+            if (!profObj && p.created_by) {
+                console.warn(`[Supabase] No profile found for user ID: ${p.created_by}. Check if a row exists in the 'profiles' table for this ID.`);
+            }
+
+            const rawName = profObj?.full_name || profObj?.username || profObj?.display_name || 'Community';
+            // If name is an email, strip the @ part for a cleaner look
+            const friendlyName = (rawName.includes('@')) ? rawName.split('@')[0] : rawName;
+
+            return {
+                ...p,
+                category: catObj?.name || p.category || 'Uncategorized',
+                profiles: profObj || { full_name: 'Community' },
+                creator_name: friendlyName
+            };
+        };
+
+        if (!error && data) {
+            return promptId ? normalize(data) : data.map(normalize);
+        } else if (error) {
+            console.warn("[Supabase] Join failed (Permissions or Schema), using simple fallback...", error.message);
+        }
+
+        // Fallback: This always works if prompts table is accessible
+        let fQuery = supabaseClient.from('prompts').select('*');
+        if (promptId) fQuery = fQuery.eq('id', promptId);
+        if (userId) fQuery = fQuery.eq('created_by', userId); 
+        if (status) fQuery = fQuery.in('status', Array.isArray(status) ? status : [status]);
+        fQuery = fQuery.order(orderBy, { ascending }); 
+        if (limit) fQuery = fQuery.limit(limit);
+        
+        const { data: fallbackData } = await (promptId ? fQuery.maybeSingle() : fQuery);
+        if (!fallbackData) return promptId ? null : [];
+
+        return promptId ? normalize(fallbackData) : fallbackData.map(normalize);
+    } catch (e) {
+        console.error("Critical Fetch Error:", e);
+        return promptId ? null : [];
+    }
+};
+
 // Data for Prompts
+// Data for Prompts (Fallback/Demo Data)
 const trendingPrompts = [
-    { id: 1, title: "YouTube Script Generator", preview: "Write a YouTube script about [topic]. Start with a strong hook and end with a call to action.", category: "Content Creation", saves: 1205, rating: 4.8 },
-    { id: 2, title: "Code Debugging Pro", preview: "I have a bug in my [language] code. [Code snippet]. Explain the error and provide a fixed version.", category: "Coding", saves: 840, rating: 4.9 },
-    { id: 3, title: "Full Blog Post Writer", preview: "Create a blog post outline on [topic] with SEO keywords, then write a 500-word introduction.", category: "Marketing", saves: 2100, rating: 4.7 },
-    { id: 4, title: "SaaS Idea Validator", preview: "Validate this SaaS idea: [Idea]. Analyze target market, potential competitors, and monetization.", category: "Brainstorming", saves: 650, rating: 4.6 },
-    { id: 5, title: "Logo Design Prompt", preview: "Modern logo for a [company type] using [color palette]. Minimalist style, vector graphics.", category: "Design", saves: 980, rating: 4.5 },
-    { id: 6, title: "LinkedIn Post Optimizer", preview: "Rewrite this draft for LinkedIn. Make it engaging, add bullet points, and include relevant hashtags.", category: "Content Creation", saves: 1540, rating: 4.8 }
+    {
+        id: "static-1",
+        title: "YouTube Script Generator",
+        description: "Generate a viral video script with a high-retention hook.",
+        content: "Write a professional YouTube script about [topic]. Include a strong hook, three main points, and a [CTA] call-to-action.",
+        category: "Content Creation",
+        saves_count: 1205,
+        rating: 4.8,
+        is_free: true,
+        created_by: "system-1"
+    },
+    {
+        id: "static-2",
+        title: "Master Code Debugger",
+        description: "Find and fix bugs in your code with detailed explanations.",
+        content: "I have a bug in my [language] code snippet: [code]. Please explain the error and provide a optimized solution.",
+        category: "Coding",
+        saves_count: 840,
+        rating: 4.9,
+        is_free: true,
+        created_by: "system-1"
+    },
+    {
+        id: "static-3",
+        title: "SEO Blog Post Writer",
+        description: "Write long-form articles optimized for search engines.",
+        content: "Create a 1000-word blog post on [topic] targeting the keyword '[keyword]'. Use a [tone] tone.",
+        category: "Marketing",
+        saves_count: 2100,
+        rating: 4.7,
+        is_free: true,
+        created_by: "system-2"
+    },
+    {
+        id: "static-4",
+        title: "SaaS Idea Validator",
+        description: "Validate your startup ideas before building them.",
+        content: "Act as a venture capitalist. Validate this SaaS idea: [Idea]. Analyze market fit, potential competitors, and [monetization] strategies.",
+        category: "Brainstorming",
+        saves_count: 650,
+        rating: 4.6,
+        is_free: false,
+        price: 499,
+        created_by: "system-2"
+    },
+    {
+        id: "static-5",
+        title: "Modern Logo Designer",
+        description: "Generate high-quality DALL-E/Midjourney logo prompts.",
+        content: "A professional, minimalist logo for a [industry] company. Style: [style], Palette: [colors]. High detail, vector style.",
+        category: "Design",
+        saves_count: 980,
+        rating: 4.5,
+        is_free: false,
+        price: 299,
+        created_by: "system-3"
+    },
+    {
+        id: "static-6",
+        title: "LinkedIn Post Hook",
+        description: "Turn your thoughts into engaging LinkedIn content.",
+        content: "Write a high-engagement LinkedIn post based on this insight: [Knowledge]. Format: [Format]. Target audience: [Persona].",
+        category: "Content Creation",
+        saves_count: 1540,
+        rating: 4.8,
+        is_free: true,
+        created_by: "system-1"
+    }
 ];
 
 const latestPrompts = [
-    { id: 7, title: "Email Marketing Sequence", preview: "Write a 3-part email sequence for a product launch in the [industry] niche.", category: "Marketing", saves: 120, rating: 4.4 },
-    { id: 8, title: "Python Unit Test Bot", preview: "Generate comprehensive unit tests for the following Python function: [code].", category: "Coding", saves: 45, rating: 4.9, is_premium: true },
-    { id: 9, title: "Interior Design Moodboard", preview: "Describe an interior design style for a [room type] with [style name] elements.", category: "Design", saves: 88, rating: 4.7, is_premium: true }
+    {
+        id: "static-7",
+        title: "Email Outreach Master",
+        description: "High-conversion cold email templates for any industry.",
+        content: "Write a cold email sequence for a product launch in the [industry] niche. Include [number] follow-ups.",
+        category: "Marketing",
+        saves_count: 120,
+        rating: 4.4,
+        is_free: true,
+        created_by: "system-3"
+    },
+    {
+        id: "static-8",
+        title: "React Unit Test Bot",
+        description: "Generate comprehensive Jest/Vitest tests for React components.",
+        content: "Generate unit tests for the following React component using [library]: [code]. Consider edge cases for [feature].",
+        category: "Coding",
+        saves_count: 45,
+        rating: 4.9,
+        is_free: false,
+        price: 599,
+        created_by: "system-1"
+    },
+    {
+        id: "static-9",
+        title: "Interior Moodboard",
+        description: "Describe detailed interior design concepts.",
+        content: "Create a professional moodboard description for a [room] in [style] style. Highlight [material] and [color] as key elements.",
+        category: "Design",
+        saves_count: 88,
+        rating: 4.7,
+        is_free: false,
+        price: 199,
+        created_by: "system-3"
+    }
 ];
 
 let allPrompts = [...trendingPrompts, ...latestPrompts];
 window.favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-let favorites = window.favorites; // Maintain local reference for existing code
 let collections = JSON.parse(localStorage.getItem('collections') || '["Favorites", "Work", "Personal"]');
 let aiSettings = JSON.parse(localStorage.getItem('aiSettings') || '{"openai": "", "gemini": ""}');
 
@@ -57,21 +237,28 @@ function renderCollections() {
 
 // Function to create prompt card
 function createPromptCard(prompt) {
-    const isFav = favorites.includes(prompt.id);
-    const hasPurchased = userPurchases.includes(prompt.id);
+    const isFav = window.favorites.includes(prompt.id);
+    const hasPurchased = (userPurchases || []).includes(prompt.id);
 
-    // Locked if: NOT Free AND (Not Purchased AND Not Author)
-    // prompt.is_free is the new column
-    const isLocked = !prompt.is_free && !hasPurchased;
+    // Locked if: NOT Free AND (Not Purchased AND Not Pro)
+    const isPro = userSubscription && userSubscription.plan_name === 'Pro' && userSubscription.status === 'active';
+    const isLocked = !prompt.is_free && !hasPurchased && !isPro;
 
     const card = document.createElement('div');
     card.className = `prompt-card ${!prompt.is_free ? 'premium' : ''}`;
     card.setAttribute('data-id', prompt.id);
+
     card.innerHTML = `
         <div class="prompt-card-header">
-            <div class="tag-group">
-                <span class="prompt-tag">${prompt.categories ? prompt.categories.name : prompt.category || 'Uncategorized'}</span>
-                ${!prompt.is_free ? '<span class="pro-badge">PAID</span>' : ''}
+            <div class="tag-group" style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="prompt-tag">${prompt.categories ? prompt.categories.name : prompt.category || 'Uncategorized'}</span>
+                    ${!prompt.is_free ? '<span class="pro-badge">PAID</span>' : ''}
+                </div>
+                <a href="creator-profile.html?id=${prompt.created_by}" class="creator-link-sm">
+                    <img src="${prompt.profiles?.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${prompt.created_by}`}" class="creator-avatar-sm" alt="Creator">
+                    <span>by ${prompt.creator_name || 'Community'}</span>
+                </a>
             </div>
             <div class="card-actions">
                 <button class="icon-btn share-btn" data-title="${prompt.title}" data-text="Copy this prompt: ${prompt.description}"><i data-lucide="share-2"></i></button>
@@ -112,103 +299,135 @@ function createPromptCard(prompt) {
     return card;
 }
 
+let renderTimeout = null;
+
 // Render Prompts
-async function renderPrompts(filterData = null) {
+async function renderPrompts(filterData = null, isAppending = false) {
     if (!trendingGrid || !latestGrid) return;
 
-    // Show Skeletons first
-    showSkeletons();
+    if (renderTimeout) clearTimeout(renderTimeout);
 
-    // If no filterData provided and supabase active, try fetching
+    const isMarketplace = document.getElementById('marketplace-grid') !== null;
+    
+    // If not appending, show skeletons or clear grid
+    if (!isAppending) {
+        showSkeletons();
+        currentPage = 1; // Reset page on new filter/search
+        hasMorePrompts = true;
+    } else {
+        // Show loading indicator
+        const loader = document.getElementById('loading-indicator');
+        if (loader) loader.style.display = 'block';
+    }
+
     let displayData = filterData;
     if (!displayData && supabaseClient) {
-        // Only fetch approved prompts for the main public view
-        const { data, error } = await supabaseClient
-            .from('prompts')
-            .select('*, categories(name)')
-            .eq('status', 'approved')
-            .order('created_at', { ascending: false });
-        if (!error && data.length > 0) {
-            displayData = data;
-            allPrompts = data; // Update local cache
-        }
+        displayData = await window.getPromptsWithMeta({ status: ['approved', 'APPROVED', 'Approved'] });
+        
+        // Re-merge with static for marketplace
+        const dbIds = (displayData || []).map(p => p.id);
+        const staticPrompts = [...trendingPrompts, ...latestPrompts].map(p => ({
+            ...p,
+            category: p.category || 'Uncategorized'
+        }));
+        const uniqueStatic = staticPrompts.filter(p => !dbIds.includes(p.id));
+        displayData = [...(displayData || []), ...uniqueStatic];
+        allPrompts = displayData;
     }
 
     if (!displayData) displayData = allPrompts;
 
-    setTimeout(() => {
-        // Sort logic
-        const sortVal = document.getElementById('sort-select')?.value || 'trending';
-        let sortedData = [...displayData];
+    renderTimeout = setTimeout(() => {
+        try {
+            const sortSelect = document.getElementById('sort-select');
+            const sortVal = sortSelect ? sortSelect.value : (isMarketplace ? 'recent' : 'trending');
+            
+            console.log(`[Render] Sorting ${displayData.length} prompts by: ${sortVal}`);
+            let sortedData = [...displayData];
 
-        if (sortVal === 'recent') {
-            sortedData.sort((a, b) => b.id - a.id);
-        } else if (sortVal === 'saves') {
-            sortedData.sort((a, b) => (b.saves || 0) - (a.saves || 0));
-        } else if (sortVal === 'rating') {
-            sortedData.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-        } else if (sortVal === 'trending') {
-            // Trending: Combination of saves and rating
-            sortedData.sort((a, b) => ((b.saves || 0) * (b.rating || 1)) - ((a.saves || 0) * (a.rating || 1)));
+            if (sortVal === 'recent') {
+                sortedData.sort((a, b) => {
+                    const valA = a.created_at ? new Date(a.created_at).getTime() : (parseInt(a.id) || 0);
+                    const valB = b.created_at ? new Date(b.created_at).getTime() : (parseInt(b.id) || 0);
+                    return valB - valA;
+                });
+            } else if (sortVal === 'saves') {
+                sortedData.sort((a, b) => (b.saves_count || 0) - (a.saves_count || 0));
+            } else if (sortVal === 'rating') {
+                sortedData.sort((a, b) => (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0));
+            } else if (sortVal === 'trending') {
+                sortedData.sort((a, b) => ((b.saves_count || 0) * (parseFloat(b.rating) || 1)) - ((a.saves_count || 0) * (parseFloat(a.rating) || 1)));
+            }
+
+            let finalDisplayData = sortedData;
+            if (isMarketplace) {
+                const totalItems = sortedData.length;
+                const start = (currentPage - 1) * itemsPerPage;
+                const end = start + itemsPerPage;
+                finalDisplayData = sortedData.slice(start, end);
+                hasMorePrompts = end < totalItems;
+                
+                const loader = document.getElementById('loading-indicator');
+                if (loader) {
+                    loader.classList.add('fade-out');
+                    setTimeout(() => {
+                        loader.style.display = 'none';
+                        loader.classList.remove('fade-out');
+                    }, 400);
+                }
+                isLoadingMore = false;
+            }
+
+            let trending, latest;
+            if (isMarketplace) {
+                trending = finalDisplayData;
+                latest = [];
+            } else {
+                trending = sortedData.slice(0, 6);
+                latest = sortedData.slice(6);
+            }
+
+            const latestSection = document.querySelector('.latest.container');
+            if (latestSection) latestSection.style.display = latest.length > 0 ? 'block' : 'none';
+
+            if (trendingGrid && !isAppending) trendingGrid.innerHTML = '';
+            if (latestGrid && latestGrid !== trendingGrid && !isAppending) latestGrid.innerHTML = '';
+
+            if (!isAppending && displayData.length === 0) {
+                const target = trendingGrid || latestGrid;
+                if (target) target.innerHTML = '<div class="no-results" style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">No prompts found matching your criteria.</div>';
+                return;
+            }
+
+            if (trendingGrid) {
+                trending.forEach((p, i) => {
+                    const card = createPromptCard(p);
+                    card.classList.add('animate-entrance');
+                    card.style.animationDelay = `${i * 0.08}s`;
+                    trendingGrid.appendChild(card);
+                    setTimeout(() => card.classList.remove('animate-entrance'), 1000 + (i * 80));
+                });
+            }
+            if (latestGrid && latestGrid !== trendingGrid) {
+                latest.forEach((p, i) => {
+                    const card = createPromptCard(p);
+                    card.classList.add('animate-entrance');
+                    card.style.animationDelay = `${(trending.length + i) * 0.08}s`;
+                    latestGrid.appendChild(card);
+                    setTimeout(() => card.classList.remove('animate-entrance'), 1000 + ((trending.length + i) * 80));
+                });
+            }
+
+            if (window.lucide) lucide.createIcons();
+
+            // (Listeners managed by event delegation)
+        } catch (err) {
+            console.error('Render error:', err);
         }
-
-        // Define what counts as "Trending" vs "Latest" for the grid sections
-        // In a real DB, we might have a 'is_trending' flag or just use the top 6 by saves
-        const trending = sortedData.slice(0, 6);
-        const latest = sortedData.slice(6);
-
-        const latestSection = document.querySelector('.latest.container');
-        if (latestSection) {
-            latestSection.style.display = latest.length > 0 ? 'block' : 'none';
-        }
-
-        trendingGrid.innerHTML = '';
-        latestGrid.innerHTML = '';
-
-        if (trending.length === 0 && latest.length === 0) {
-            trendingGrid.innerHTML = '<div class="no-results" style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">No prompts found matching your criteria.</div>';
-        }
-
-        trending.forEach(p => trendingGrid.appendChild(createPromptCard(p)));
-        latest.forEach(p => latestGrid.appendChild(createPromptCard(p)));
-
-        if (window.lucide) lucide.createIcons();
-
-        // Re-attach listeners
-        document.querySelectorAll('.copy-btn').forEach(btn => {
-            btn.addEventListener('click', () => copyToClipboard(btn.getAttribute('data-prompt'), btn));
-        });
-
-        document.querySelectorAll('.heart-btn').forEach(btn => {
-            btn.addEventListener('click', () => toggleFavorite(btn.getAttribute('data-id'), btn));
-        });
-
-        document.querySelectorAll('.share-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const title = btn.getAttribute('data-title');
-                const text = btn.getAttribute('data-text');
-                sharePrompt(title, text);
-            });
-        });
-
-        document.querySelectorAll('.rating-stars i').forEach(star => {
-            star.addEventListener('click', (e) => {
-                const container = e.target.closest('.rating-stars');
-                const id = container.getAttribute('data-id');
-                const rating = parseInt(star.getAttribute('data-star'));
-                updateRating(id, rating, container);
-            });
-        });
-
-        document.querySelectorAll('.buy-now-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const id = btn.getAttribute('data-id');
-                const price = parseFloat(btn.getAttribute('data-price'));
-                initiatePromptPurchase(id, price);
-            });
-        });
-    }, 600); // Shimmer for 600ms
+    }, 300);
 }
+
+
 
 function sharePrompt(title, text) {
     if (navigator.share) {
@@ -228,17 +447,16 @@ function sharePrompt(title, text) {
 function showSkeletons() {
     const skeletonHTML = `
         <div class="skeleton-card">
-            <div class="skeleton-content">
-                <div class="skeleton-line tag"></div>
-                <div class="skeleton-line title"></div>
-                <div class="skeleton-line preview"></div>
-                <div class="skeleton-line footer"></div>
-            </div>
+            <div class="skeleton-line tag"></div>
+            <div class="skeleton-line title"></div>
+            <div class="skeleton-line preview"></div>
+            <div class="skeleton-line footer"></div>
         </div>
     `;
 
-    trendingGrid.innerHTML = skeletonHTML.repeat(3);
-    latestGrid.innerHTML = skeletonHTML.repeat(3);
+    // Fill grid with 6 skeletons for a better initial layout look
+    if (trendingGrid) trendingGrid.innerHTML = skeletonHTML.repeat(6);
+    if (latestGrid && latestGrid !== trendingGrid) latestGrid.innerHTML = skeletonHTML.repeat(6);
 }
 
 function updateRating(id, rating, container) {
@@ -380,6 +598,8 @@ function initiateRazorpayPayment() {
     rzp.open();
 }
 
+// --- TEST / DEBUG UTILITIES ---
+
 async function handlePromptUpload(e) {
     e.preventDefault();
     if (!supabaseClient) return alert('Supabase not configured');
@@ -401,7 +621,8 @@ async function handlePromptUpload(e) {
         created_by: user.id, // 'created_by' is the new column
         is_free: !isPremium, // 'is_free' is the logic
         price: parseFloat(price),
-        is_public: true
+        is_public: true,
+        status: 'approved' // Auto-approve for now
     });
 
     if (error) alert('Error: ' + error.message);
@@ -451,30 +672,49 @@ async function handleDemoUnlock(promptId) {
 
 // Copy Logic
 function copyToClipboard(text, btn) {
-    navigator.clipboard.writeText(text).then(() => {
+    if (!btn) return;
+    const promptToCopy = text || btn.getAttribute('data-prompt');
+    if (!promptToCopy) return;
+
+    // Resolve variables if inside a card
+    let processedText = promptToCopy;
+    const parentCard = btn.closest('.prompt-card, .potd-card, .playground-input, .ai-generated-card');
+    
+    if (parentCard) {
+        let selector = '.prompt-card';
+        if (parentCard.classList.contains('potd-card')) selector = '.potd-card';
+        else if (parentCard.classList.contains('playground-input')) selector = '.playground-input';
+        else if (parentCard.classList.contains('ai-generated-card')) selector = '.ai-generated-card';
+        
+        if (typeof getFilledPrompt === 'function') {
+            processedText = getFilledPrompt(promptToCopy, selector);
+        }
+    }
+
+    navigator.clipboard.writeText(processedText).then(() => {
         const original = btn.innerHTML;
         btn.innerHTML = '<i data-lucide="check"></i> Copied!';
-        btn.style.color = '#10b981';
+        btn.classList.add('btn-copy-success');
 
-        // Celebration!
-        if (window.confetti) {
+        // Celebration & Visual Feedback!
+        if (typeof confetti === 'function') {
             confetti({
-                particleCount: 100,
-                spread: 70,
+                particleCount: 150,
+                spread: 80,
                 origin: { y: 0.6 },
-                colors: ['#00F5FF', '#0066FF', '#00D1FF', '#0033FF']
+                colors: ['#10b981', '#00F5FF', '#0066FF', '#ffffff']
             });
         }
 
-        // Mock Sound
+        // Professional Feedback Sound
         const audio = new Audio('https://www.soundjay.com/buttons/sounds/button-37a.mp3');
-        audio.volume = 0.2;
+        audio.volume = 0.15;
         audio.play().catch(() => { });
 
         if (window.lucide) lucide.createIcons();
         setTimeout(() => {
             btn.innerHTML = original;
-            btn.style.color = '';
+            btn.classList.remove('btn-copy-success');
             if (window.lucide) lucide.createIcons();
         }, 2000);
     });
@@ -482,12 +722,16 @@ function copyToClipboard(text, btn) {
 
 // Sync and Filter Logic
 function syncSearch(query) {
+    // If we're on index.html and the user types/clicks search, optionally redirect to prompts.html
+    // But for "live" sync, we keep it as is if they are already on the page.
     if (searchInput) searchInput.value = query;
     if (headerSearchInput) headerSearchInput.value = query;
+    if (filterSearchInput) filterSearchInput.value = query;
 
+    currentPage = 1; // Reset to page 1 for search
     const filtered = allPrompts.filter(p =>
         p.title.toLowerCase().includes(query.toLowerCase()) ||
-        p.category.toLowerCase().includes(query.toLowerCase())
+        (p.category && p.category.toLowerCase().includes(query.toLowerCase()))
     );
     renderPrompts(filtered);
 }
@@ -508,7 +752,7 @@ function openModal(type) {
     if (!modalOverlay) return console.error('Modal overlay not found');
 
     modalOverlay.classList.add('active');
-    
+
     // Ensure modal variables are mapped
     const mLogin = loginModal || document.getElementById('login-modal');
     const mSignup = signupModal || document.getElementById('signup-modal');
@@ -529,7 +773,7 @@ function openModal(type) {
 
     if (targetModal) {
         targetModal.classList.add('active');
-        
+
         // Populate AI settings if needed
         if (type === 'ai-settings') {
             const openaiInput = document.getElementById('openai-key');
@@ -543,7 +787,7 @@ function openModal(type) {
 function closeModal() {
     if (!modalOverlay) modalOverlay = document.getElementById('modal-overlay');
     modalOverlay?.classList.remove('active');
-    
+
     const modals = [
         loginModal || document.getElementById('login-modal'),
         signupModal || document.getElementById('signup-modal'),
@@ -681,6 +925,7 @@ async function checkUserSession() {
 
         if (session?.user) {
             updateAuthUI(session.user);
+            ensureUserProfile(session.user); // Auto-create profile if missing
             fetchFavorites();
             fetchSubscription();
             fetchPurchases();
@@ -697,17 +942,41 @@ async function checkUserSession() {
         console.error("Session Check Error:", err.message);
     }
 }
+
+async function ensureUserProfile(user) {
+    if (!supabaseClient) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('profiles')
+            .select('id')
+            .eq('id', user.id)
+            .maybeSingle();
+
+        if (!data && !error) {
+            // Profile missing, create it
+            await supabaseClient.from('profiles').insert({
+                id: user.id,
+                full_name: user.user_metadata?.full_name || 'Creator',
+                avatar_url: `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.id}`
+            });
+        }
+    } catch (e) {
+        console.error('Profile creation error:', e);
+    }
+}
 // -----------------------------
 
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
+    initCustomSelects();
     // Initialize Elements
-    trendingGrid = document.getElementById('trending-grid');
-    latestGrid = document.getElementById('latest-grid');
+    trendingGrid = document.getElementById('trending-grid') || document.getElementById('marketplace-grid');
+    latestGrid = document.getElementById('latest-grid') || document.getElementById('marketplace-grid');
     searchInput = document.getElementById('main-search');
     headerSearchInput = document.getElementById('header-search-input');
     headerSearchToggle = document.getElementById('header-search-toggle');
     headerSearchContainer = document.getElementById('header-search-container');
+    filterSearchInput = document.getElementById('filter-search-input');
     heroSearchBtn = document.getElementById('hero-search-btn');
 
     playgroundInput = document.getElementById('playground-input-field');
@@ -758,6 +1027,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const category = btn.getAttribute('data-category');
             filterButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            currentPage = 1; // Reset to page 1 on category change
 
             if (category === 'all') {
                 renderPrompts(allPrompts);
@@ -772,7 +1042,7 @@ document.addEventListener('DOMContentLoaded', () => {
     favFilterBtn?.addEventListener('click', () => {
         filterButtons.forEach(b => b.classList.remove('active'));
         favFilterBtn.classList.add('active');
-        const favPrompts = allPrompts.filter(p => favorites.includes(p.id));
+        const favPrompts = allPrompts.filter(p => window.favorites.includes(p.id));
         renderPrompts(favPrompts);
 
         // Scroll to trending section to show results
@@ -818,7 +1088,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Initialize Autocomplete for different pages
     handleAutocomplete(searchInput, document.getElementById('main-search-suggestions'));
+    handleAutocomplete(filterSearchInput, document.getElementById('filter-search-suggestions'));
     handleAutocomplete(headerSearchInput, document.getElementById('header-search-suggestions'));
 
     // Submit Prompt Modal
@@ -859,7 +1131,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     description: promptText.substring(0, 100) + (promptText.length > 100 ? '...' : ''),
                     content: promptText,
                     status: 'approved',
-                    is_free: true
+                    is_free: true,
+                    created_by: user.id // Fix: Add missing author ID
                 };
 
                 if (catData && catData.id) {
@@ -889,111 +1162,76 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Prompt successfully added to the library!');
     });
 
-    // Playground Logic
-    const playgroundPromptDisplay = document.querySelector('.playground-prompt-text');
-    const varInputContainer = document.createElement('div');
-    varInputContainer.className = 'variable-inputs';
-    playgroundPromptDisplay?.after(varInputContainer);
+    // --- Consolidated Playground & AI Logic ---
+    const compareToggle = document.getElementById('playground-compare-toggle');
+    const model2Group = document.getElementById('playground-model-2-group');
+    const resultContainer = document.getElementById('playground-result-container');
 
-    function updatePlaygroundVariables() {
-        if (!playgroundInput || !playgroundPromptDisplay) return;
-        const text = playgroundInput.value || playgroundPromptDisplay.textContent;
-        const regex = /\[(.*?)\]/g;
-        const matches = [...text.matchAll(regex)];
-        const vars = [...new Set(matches.map(m => m[1]))];
-
-        if (vars.length > 0) {
-            varInputContainer.innerHTML = vars.map(v => `
-                <div class="variable-field">
-                    <label>${v}</label>
-                    <input type="text" placeholder="Enter ${v}..." class="var-input" data-var="${v}">
-                </div>
-            `).join('');
-            varInputContainer.classList.add('active');
+    compareToggle?.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            model2Group?.classList.add('active');
+            resultContainer?.classList.add('comparing');
+            const res2 = document.getElementById('playground-result-2');
+            if (res2) res2.style.display = 'block';
+            const header1 = document.getElementById('output-header-1');
+            if (header1) header1.textContent = 'Comparison Mode';
         } else {
-            varInputContainer.classList.remove('active');
-            varInputContainer.innerHTML = '';
-        }
-    }
-
-    playgroundInput?.addEventListener('input', updatePlaygroundVariables);
-
-    function renderPlaygroundHistory() {
-        const historyList = document.getElementById('history-list');
-        if (!historyList) return;
-
-        const history = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
-        if (history.length === 0) {
-            historyList.innerHTML = '<p class="placeholder-text">No history yet.</p>';
-            return;
-        }
-
-        historyList.innerHTML = history.map((item, index) => `
-            <div class="history-item" data-index="${index}">
-                <div class="history-item-info">
-                    <strong>${item.topic.substring(0, 30)}${item.topic.length > 30 ? '...' : ''}</strong>
-                    <span>${item.tone} • ${item.format}</span>
-                </div>
-                <div style="display: flex; gap: 8px;">
-                    <button class="icon-btn small-btn copy-btn" data-prompt="${item.topic}"><i data-lucide="copy"></i></button>
-                    <button class="icon-btn small-btn delete-history-btn" data-index="${index}" style="color: var(--text-muted);"><i data-lucide="trash-2"></i></button>
-                </div>
-            </div>
-        `).join('');
-
-        const deleteBtns = historyList.querySelectorAll('.delete-history-btn');
-        deleteBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const index = parseInt(e.currentTarget.dataset.index);
-                const currentHistory = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
-                currentHistory.splice(index, 1);
-                localStorage.setItem('playgroundHistory', JSON.stringify(currentHistory));
-                renderPlaygroundHistory();
-            });
-        });
-        if (window.lucide) lucide.createIcons();
-    }
-
-    playgroundBtn?.addEventListener('click', () => {
-        let topic = playgroundInput.value.trim() || (playgroundPromptDisplay ? playgroundPromptDisplay.textContent : '');
-        if (!topic) return alert('Please enter a topic!');
-
-        const toneSelect = document.getElementById('playground-tone');
-        const formatSelect = document.getElementById('playground-format');
-        const tone = toneSelect ? toneSelect.value : 'Default';
-        const format = formatSelect ? formatSelect.value : 'Default';
-
-        const varInputs = varInputContainer.querySelectorAll('.var-input');
-        varInputs.forEach(input => {
-            const varName = input.getAttribute('data-var');
-            const varValue = input.value.trim();
-            if (varValue) {
-                topic = topic.replace(new RegExp(`\\[${varName}\\]`, 'g'), varValue);
-            }
-        });
-
-        playgroundBtn.innerHTML = '<i class="loader spin"></i> Generating Pulse...';
-        playgroundBtn.disabled = true;
-
-        const selectedModel = document.getElementById('playground-model')?.value || 'optimized';
-
-        if (selectedModel === 'optimized') {
-            generateOptimizedPrompt(topic, tone, format);
-        } else {
-            handleRealAIGeneration(topic, tone, format, selectedModel);
+            model2Group?.classList.remove('active');
+            resultContainer?.classList.remove('comparing');
+            const res2 = document.getElementById('playground-result-2');
+            if (res2) res2.style.display = 'none';
+            const header1 = document.getElementById('output-header-1');
+            if (header1) header1.textContent = 'Result';
         }
     });
 
-    async function handleRealAIGeneration(topic, tone, format, model) {
-        const apiKey = model.startsWith('gpt') ? aiSettings.openai : aiSettings.gemini;
+    playgroundBtn?.addEventListener('click', async () => {
+        let topic = playgroundInput.value.trim() || (playgroundPromptDisplay ? playgroundPromptDisplay.textContent : '');
+        if (!topic) return alert('Please enter a topic!');
 
-        if (!apiKey) {
-            playgroundBtn.innerHTML = '<i data-lucide="zap"></i> Generate Result';
+        const tone = document.getElementById('playground-tone')?.value || 'Default';
+        const format = document.getElementById('playground-format')?.value || 'Default';
+
+        // Fill variables from inputs
+        topic = getFilledPrompt(topic, '.playground-input');
+
+        playgroundBtn.innerHTML = '<i class="loader spin"></i> Generating...';
+        playgroundBtn.disabled = true;
+
+        const model1 = document.getElementById('playground-model')?.value || 'optimized';
+        const isComparing = compareToggle?.checked;
+
+        try {
+            if (isComparing) {
+                const model2 = document.getElementById('playground-model-2')?.value || 'gemini-pro';
+                await Promise.all([
+                    generateTask(topic, tone, format, model1, 'playground-result'),
+                    generateTask(topic, tone, format, model2, 'playground-result-2')
+                ]);
+            } else {
+                await generateTask(topic, tone, format, model1, 'playground-result');
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            playgroundBtn.innerHTML = '⚡ Generate Result';
             playgroundBtn.disabled = false;
             if (window.lucide) lucide.createIcons();
+        }
+    });
 
-            showNoKeyAlert(model, topic, tone, format);
+    async function generateTask(topic, tone, format, model, targetId) {
+        if (model === 'optimized') {
+            await generateOptimizedPrompt(topic, tone, format, targetId);
+        } else {
+            await handleRealAIGeneration(topic, tone, format, model, targetId);
+        }
+    }
+
+    async function handleRealAIGeneration(topic, tone, format, model, targetId) {
+        const apiKey = model.startsWith('gpt') ? aiSettings.openai : aiSettings.gemini;
+        if (!apiKey) {
+            showNoKeyAlert(model, topic, tone, format, targetId);
             return;
         }
 
@@ -1004,40 +1242,36 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 resultText = await fetchGemini(topic, tone, format, apiKey);
             }
-            renderAIResult(resultText, model, topic);
+            renderAIResult(resultText, model, topic, targetId);
         } catch (err) {
-            alert(`AI Error: ${err.message}`);
-        } finally {
-            playgroundBtn.innerHTML = '<i data-lucide="zap"></i> Generate Result';
-            playgroundBtn.disabled = false;
-            if (window.lucide) lucide.createIcons();
+            const container = document.getElementById(targetId);
+            if (container) container.innerHTML = `<div class="error-msg">Error: ${err.message}</div>`;
         }
     }
 
-    function showNoKeyAlert(model, topic, tone, format) {
+    function showNoKeyAlert(model, topic, tone, format, targetId) {
         const platform = model.startsWith('gpt') ? 'ChatGPT' : 'Gemini';
         const url = model.startsWith('gpt')
             ? `https://chatgpt.com/?q=${encodeURIComponent(topic)}`
             : `https://gemini.google.com/app?q=${encodeURIComponent(topic)}`;
 
-        playgroundResult.innerHTML = `
-            <div class="ai-generated-card alert-card">
-                <div class="ai-card-header">
-                    <div class="ai-card-title"><i data-lucide="info"></i> API Key Required</div>
-                </div>
-                <div class="ai-card-body" style="text-align: center; padding: 40px 20px;">
-                    <p style="margin-bottom: 24px;">To generate results directly here, please add your <strong>${platform} API Key</strong> in settings.</p>
-                    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-                        <button class="btn btn-primary" onclick="window.openModal('ai-settings')">
-                            <i data-lucide="settings"></i> Configure Keys
-                        </button>
-                        <a href="${url}" target="_blank" class="btn btn-outline">
-                            <i data-lucide="external-link"></i> Continue on ${platform}
-                        </a>
+        const container = document.getElementById(targetId);
+        if (container) {
+            container.innerHTML = `
+                <div class="ai-generated-card alert-card">
+                    <div class="ai-card-header">
+                        <div class="ai-card-title"><i data-lucide="info"></i> API Key Required</div>
+                    </div>
+                    <div class="ai-card-body" style="text-align: center; padding: 20px;">
+                        <p style="font-size: 0.85rem; margin-bottom: 16px;">Add <strong>${platform}</strong> key in settings.</p>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <button class="btn btn-primary btn-sm" onclick="window.openModal('ai-settings')">Setup Key</button>
+                            <a href="${url}" target="_blank" class="btn btn-outline btn-sm">Try on ${platform}</a>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
+            `;
+        }
         if (window.lucide) lucide.createIcons();
     }
 
@@ -1077,107 +1311,205 @@ document.addEventListener('DOMContentLoaded', () => {
         return data.candidates[0].content.parts[0].text;
     }
 
-    function renderAIResult(text, model, originalTopic) {
+    function renderAIResult(text, model, originalTopic, targetId) {
         const platform = model.startsWith('gpt') ? 'ChatGPT' : 'Gemini';
-        playgroundResult.innerHTML = `
-            <div class="ai-generated-card">
-                <div class="ai-card-header">
-                    <div class="mac-dots"><span></span><span></span><span></span></div>
-                    <div class="ai-card-title"><i data-lucide="sparkles"></i> Generated by ${platform}</div>
-                    <button class="icon-btn small-btn copy-btn" data-prompt="${text.replace(/"/g, '&quot;')}">
-                        <i data-lucide="copy"></i>
-                    </button>
-                </div>
-                <div class="ai-card-body">
-                    <div class="markdown-content" style="white-space: pre-wrap; font-size: 1rem; line-height: 1.6;">${text}</div>
-                </div>
-                <div class="ai-card-footer" style="padding: 12px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 8px;">
-                     <button class="btn btn-sm btn-outline" onclick="window.open('${model.startsWith('gpt') ? 'https://chat.openai.com' : 'https://gemini.google.com'}', '_blank')">
-                        View on ${platform}
-                     </button>
-                </div>
-            </div>
-        `;
-        if (window.lucide) lucide.createIcons();
-
-        // Save to history
-        const history = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
-        history.unshift({ topic: originalTopic, result: text, date: new Date().toISOString(), model: platform });
-        localStorage.setItem('playgroundHistory', JSON.stringify(history.slice(0, 10)));
-        renderPlaygroundHistory();
-    }
-
-    function generateOptimizedPrompt(topic, tone, format) {
-        setTimeout(() => {
-            const rawPrompt = `Act as an elite expert and absolute authority in this field.\n\n**Your Objective:**\n${topic}\n\n**Instructions & Guidelines:**\n- Adopt a strictly ${tone.toLowerCase()} tone of voice throughout your entire response.\n- Ensure your output is highly actionable, logically structured, and easy to understand.\n- Anticipate edge-cases, provide comprehensive details, and do not use generic filler words.\n\n**Format Requirements:**\n- Present the final output precisely as a ${format.toLowerCase()}.\n- Use markdown (headings, bold text, bullet points) where appropriate to dramatically enhance readability.`;
-
-            const resultHtml = `
+        const container = document.getElementById(targetId);
+        if (container) {
+            container.innerHTML = `
                 <div class="ai-generated-card">
                     <div class="ai-card-header">
-                        <div class="mac-dots">
-                            <span></span><span></span><span></span>
-                        </div>
-                        <div class="ai-card-title">
-                            <i data-lucide="sparkles" style="color: var(--accent-primary); width: 16px;"></i> Optimized Meta-Prompt
-                        </div>
-                        <button class="icon-btn small-btn copy-btn" data-prompt="${rawPrompt.replace(/"/g, '&quot;')}" title="Copy to Clipboard">
+                        <div class="mac-dots"><span></span><span></span><span></span></div>
+                        <div class="ai-card-title"><i data-lucide="sparkles"></i> ${platform}</div>
+                        <button class="icon-btn small-btn copy-btn" data-prompt="${text.replace(/"/g, '&quot;')}">
                             <i data-lucide="copy"></i>
                         </button>
                     </div>
                     <div class="ai-card-body">
-                        <div class="prompt-section">
-                            <span class="prompt-label">ROLE</span>
-                            <p>Act as an elite expert and absolute authority in this field.</p>
-                        </div>
-                        <div class="prompt-divider"></div>
-                        <div class="prompt-section">
-                            <span class="prompt-label">OBJECTIVE</span>
-                            <p class="highlight">${topic}</p>
-                        </div>
-                        <div class="prompt-divider"></div>
-                        <div class="prompt-section">
-                            <span class="prompt-label">INSTRUCTIONS</span>
-                            <ul>
-                                <li>Adopt a strictly <strong>${tone.toLowerCase()}</strong> tone of voice throughout your entire response.</li>
-                                <li>Ensure your output is highly actionable, logically structured, and easy to understand.</li>
-                                <li>Anticipate edge-cases, provide comprehensive details, and do not use generic filler words.</li>
-                            </ul>
-                        </div>
-                        <div class="prompt-divider"></div>
-                        <div class="prompt-section">
-                            <span class="prompt-label">FORMAT</span>
-                            <ul>
-                                <li>Present the final output precisely as a <strong>${format.toLowerCase()}</strong>.</li>
-                                <li>Use markdown (headings, bold text, bullet points) where appropriate to dramatically enhance readability.</li>
-                            </ul>
-                        </div>
+                        <div class="markdown-content" style="white-space: pre-wrap; font-size: 0.95rem; line-height: 1.5;">${text}</div>
                     </div>
                 </div>
             `;
-            playgroundResult.innerHTML = resultHtml;
-            playgroundBtn.innerHTML = '⚡ Generate Result';
-            playgroundBtn.disabled = false;
+        }
+        if (window.lucide) lucide.createIcons();
 
-            // Save to history
+        // Save to history (only if 1st result or main result)
+        if (targetId === 'playground-result') {
             const history = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
-            history.unshift({ topic, tone, format, date: new Date().toISOString() });
-            localStorage.setItem('playgroundHistory', JSON.stringify(history.slice(0, 5))); // Keep last 5
+            history.unshift({ topic: originalTopic, result: text, date: new Date().toISOString(), model: platform });
+            localStorage.setItem('playgroundHistory', JSON.stringify(history.slice(0, 10)));
             renderPlaygroundHistory();
-
-            if (window.confetti) {
-                confetti({
-                    particleCount: 40,
-                    spread: 70,
-                    origin: { y: 0.8 }
-                });
-            }
-            if (window.lucide) lucide.createIcons();
-        }, 1200);
+        }
     }
 
-    // Initial Render Actions
+    async function generateOptimizedPrompt(topic, tone, format, targetId) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const rawPrompt = `Act as an elite expert and absolute authority in this field.\n\n**Your Objective:**\n${topic}\n\n**Instructions & Guidelines:**\n- Adopt a strictly ${tone.toLowerCase()} tone of voice throughout your entire response.\n- Ensure your output is highly actionable, logically structured, and easy to understand.\n- Anticipate edge-cases, provide comprehensive details, and do not use generic filler words.\n\n**Format Requirements:**\n- Present the final output precisely as a ${format.toLowerCase()}.\n- Use markdown (headings, bold text, bullet points) where appropriate to dramatically enhance readability.`;
+
+                const container = document.getElementById(targetId);
+                if (container) {
+                    container.innerHTML = `
+                        <div class="ai-generated-card">
+                            <div class="ai-card-header">
+                                <div class="mac-dots"><span></span><span></span><span></span></div>
+                                <div class="ai-card-title"><i data-lucide="wand-2"></i> Optimizer</div>
+                                <button class="icon-btn small-btn copy-btn" data-prompt="${rawPrompt.replace(/"/g, '&quot;')}">
+                                    <i data-lucide="copy"></i>
+                                </button>
+                            </div>
+                            <div class="ai-card-body">
+                                <p style="font-size: 0.9rem; margin-bottom: 8px; color: var(--accent-primary); font-weight: 600;">OBJECTIVE:</p>
+                                <p style="font-size: 0.95rem; margin-bottom: 16px;">${topic}</p>
+                                <p style="font-size: 0.9rem; margin-bottom: 8px; color: var(--accent-primary); font-weight: 600;">MODEL INSTRUCTIONS:</p>
+                                <ul style="font-size: 0.85rem; color: var(--text-muted);">
+                                    <li>Tone: ${tone}</li>
+                                    <li>Format: ${format}</li>
+                                    <li>Actionable & Structured</li>
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                if (targetId === 'playground-result') {
+                    // Save to history
+                    const history = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
+                    history.unshift({ topic, tone, format, date: new Date().toISOString() });
+                    localStorage.setItem('playgroundHistory', JSON.stringify(history.slice(0, 5)));
+                    renderPlaygroundHistory();
+                }
+
+                if (window.lucide) lucide.createIcons();
+                resolve();
+            }, 800);
+        });
+    }
+
+    function renderPlaygroundHistory() {
+        const historyList = document.getElementById('history-list');
+        if (!historyList) return;
+
+        const history = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
+        if (history.length === 0) {
+            historyList.innerHTML = '<p class="placeholder-text">No history yet.</p>';
+            return;
+        }
+
+        historyList.innerHTML = history.map((item, index) => `
+            <div class="history-item" data-index="${index}">
+                <div class="history-item-info">
+                    <strong>${(item.topic || '').substring(0, 30)}${(item.topic || '').length > 30 ? '...' : ''}</strong>
+                    <span>${item.tone || 'Default'} • ${item.format || 'Default'}</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="icon-btn small-btn copy-btn" data-prompt="${(item.topic || '').replace(/"/g, '&quot;')}"><i data-lucide="copy"></i></button>
+                    <button class="icon-btn small-btn delete-history-btn" data-index="${index}" style="color: var(--text-muted);"><i data-lucide="trash-2"></i></button>
+                </div>
+            </div>
+        `).join('');
+
+        const deleteBtns = historyList.querySelectorAll('.delete-history-btn');
+        deleteBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const index = parseInt(e.currentTarget.dataset.index);
+                const currentHistory = JSON.parse(localStorage.getItem('playgroundHistory') || '[]');
+                currentHistory.splice(index, 1);
+                localStorage.setItem('playgroundHistory', JSON.stringify(currentHistory));
+                renderPlaygroundHistory();
+            });
+        });
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function extractVariables(text) {
+        const regex = /\[([a-zA-Z0-9_\s]+)\]/g;
+        const matches = new Set();
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+            matches.add(match[1]);
+        }
+        return Array.from(matches);
+    }
+
+    function updatePlaygroundVariables() {
+        if (!playgroundInput) return;
+        const text = playgroundInput.value;
+        const variables = extractVariables(text);
+
+        let varContainer = document.getElementById('playground-vars');
+        if (!varContainer) {
+            varContainer = document.createElement('div');
+            varContainer.id = 'playground-vars';
+            varContainer.className = 'playground-variables-section';
+            playgroundInput.parentNode.insertBefore(varContainer, playgroundInput.nextSibling);
+        }
+
+        if (variables.length === 0) {
+            varContainer.innerHTML = '';
+            varContainer.style.display = 'none';
+            return;
+        }
+
+        varContainer.style.display = 'block';
+        varContainer.innerHTML = `
+            <div class="var-header">Fill in variables:</div>
+            <div class="var-grid">
+                ${variables.map(v => `
+                    <div class="var-input-group">
+                        <label>${v}</label>
+                        <input type="text" class="var-field" data-var="${v}" placeholder="Enter ${v.toLowerCase()}...">
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    function initPOTDVariables() {
+        const potdText = "Generate 5 startup ideas in the [industry] industry. Include problem, solution, and target audience.";
+        const variables = extractVariables(potdText);
+        const varContainer = document.getElementById('potd-vars');
+        if (varContainer && variables.length > 0) {
+            varContainer.style.display = 'block';
+            varContainer.innerHTML = `
+                <div class="var-header">Customize Prompt:</div>
+                <div class="var-grid">
+                    ${variables.map(v => `
+                        <div class="var-input-group">
+                            <label>${v}</label>
+                            <input type="text" class="var-field" data-var="${v}" placeholder="Enter ${v}...">
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+    }
+
+    function getFilledPrompt(text, containerSelector) {
+        let filledText = text;
+        const variables = extractVariables(text);
+        const container = document.querySelector(containerSelector);
+
+        if (container) {
+            variables.forEach(v => {
+                const input = container.querySelector(`.var-field[data-var="${v}"]`);
+                if (input && input.value.trim() !== '') {
+                    filledText = filledText.split(`[${v}]`).join(input.value.trim());
+                }
+            });
+        }
+        return filledText;
+    }
+
+    // --- Standard Initializations & Events ---
     renderCollections();
     renderPlaygroundHistory();
+    initPOTDVariables();
+    renderPrompts();
+    initInfiniteScroll();
+
+    playgroundInput?.addEventListener('input', updatePlaygroundVariables);
+
     const collectionsSidebar = document.getElementById('collections-sidebar');
     const openCollectionsBtn = document.createElement('button');
     openCollectionsBtn.className = 'icon-btn';
@@ -1198,17 +1530,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Initial Render
-    renderPrompts();
     updatePlaygroundVariables();
 
     // Standard Events
     searchInput?.addEventListener('input', (e) => syncSearch(e.target.value));
     headerSearchInput?.addEventListener('input', (e) => syncSearch(e.target.value));
+    filterSearchInput?.addEventListener('input', (e) => syncSearch(e.target.value));
 
     heroSearchBtn?.addEventListener('click', () => {
-        if (searchInput) {
-            syncSearch(searchInput.value);
-            document.getElementById('trending')?.scrollIntoView({ behavior: 'smooth' });
+        if (searchInput && searchInput.value.trim() !== '') {
+            // Redirect to marketplace with search query
+            window.location.href = `prompts.html?search=${encodeURIComponent(searchInput.value)}`;
+        } else {
+            // If empty, just go to marketplace
+            window.location.href = 'prompts.html';
         }
     });
 
@@ -1217,21 +1552,58 @@ document.addEventListener('DOMContentLoaded', () => {
         if (headerSearchContainer?.classList.contains('active')) headerSearchInput?.focus();
     });
 
+    // (Pagination Listeners removed)
+
     document.getElementById('sort-select')?.addEventListener('change', () => {
         // Find the currently active category button
         const activeBtn = document.querySelector('.filter-btn.active');
         const category = activeBtn ? activeBtn.getAttribute('data-category') : 'all';
+        currentPage = 1; // Reset to page 1 on sort change
 
         if (category === 'all') {
             renderPrompts(allPrompts);
         } else if (category === 'favorite') {
-            const favs = allPrompts.filter(p => favorites.includes(p.id));
+            const favs = allPrompts.filter(p => window.favorites.includes(p.id));
             renderPrompts(favs);
         } else {
-            const filtered = allPrompts.filter(p => p.category === category);
+            const filtered = allPrompts.filter(p =>
+                p.category && p.category.toLowerCase() === category.toLowerCase()
+            );
             renderPrompts(filtered);
         }
     });
+
+/* --- Infinite Scroll Logic --- */
+function initInfiniteScroll() {
+    const sentinel = document.getElementById('scroll-sentinel');
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && !isLoadingMore && hasMorePrompts) {
+            isLoadingMore = true;
+            currentPage++;
+            
+            // Re-render with currently active filter
+            const activeBtn = document.querySelector('.filter-btn.active');
+            const category = activeBtn ? activeBtn.getAttribute('data-category') : 'all';
+            const searchQuery = searchInput ? searchInput.value : '';
+
+            let dataToRender = allPrompts;
+            if (searchQuery) {
+                dataToRender = allPrompts.filter(p =>
+                    p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (p.category && p.category.toLowerCase().includes(searchQuery.toLowerCase()))
+                );
+            } else if (category !== 'all') {
+                dataToRender = allPrompts.filter(p => p.category.toLowerCase() === category.toLowerCase());
+            }
+
+            renderPrompts(dataToRender, true);
+        }
+    }, { threshold: 0.1 });
+
+    observer.observe(sentinel);
+}
 
     // Horizontal Scroll with Mouse Wheel for Filter Bar
     const filterBar = document.querySelector('.filter-bar');
@@ -1267,8 +1639,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Signup Form Submit
     document.getElementById('signup-form')?.addEventListener('submit', (e) => {
         e.preventDefault();
-        const fullNameInput = e.target.querySelector('input[placeholder="John Doe"]');
-        const fullName = fullNameInput ? fullNameInput.value : '';
+        const fullName = document.getElementById('signup-fullname')?.value || '';
         const email = e.target.querySelector('input[type="email"]').value;
         const password = e.target.querySelector('input[type="password"]').value;
         handleSignUp(email, password, fullName);
@@ -1281,35 +1652,51 @@ document.addEventListener('DOMContentLoaded', () => {
     // Subscription buttons
     document.getElementById('buy-pro-btn')?.addEventListener('click', initiateRazorpayPayment);
 
-    // Global click listener for Unlock buttons
+    // Global click listener for Prompt Card Actions (Event Delegation)
     document.addEventListener('click', (e) => {
+        // Unlock Demo Button
         const unlockBtn = e.target.closest('.unlock-demo-btn');
         if (unlockBtn) {
             const promptId = unlockBtn.getAttribute('data-id');
             handleDemoUnlock(promptId);
+            return;
+        }
+
+        // Heart (Favorite) Button
+        const heartBtn = e.target.closest('.heart-btn');
+        if (heartBtn) {
+            const promptId = heartBtn.getAttribute('data-id');
+            toggleFavorite(promptId, heartBtn);
+            return;
+        }
+
+        // Share Button
+        const shareBtn = e.target.closest('.share-btn');
+        if (shareBtn) {
+            const title = shareBtn.getAttribute('data-title');
+            const text = shareBtn.getAttribute('data-text');
+            sharePrompt(title, text);
+            return;
+        }
+
+        // Copy Button
+        const copyBtn = e.target.closest('.copy-btn');
+        if (copyBtn) {
+            const content = copyBtn.getAttribute('data-prompt');
+            copyToClipboard(content, copyBtn);
+            return;
+        }
+        // Rating Star
+        const star = e.target.closest('.rating-stars i');
+        if (star) {
+            const container = star.closest('.rating-stars');
+            const promptId = container.getAttribute('data-id');
+            const rating = parseInt(star.getAttribute('data-star'));
+            updateRating(promptId, rating, container);
+            return;
         }
     });
 
-    // Global copy button handler
-    document.addEventListener('click', async (e) => {
-        const copyBtn = e.target.closest('.copy-btn');
-        if (copyBtn) {
-            const promptText = copyBtn.getAttribute('data-prompt');
-            if (promptText) {
-                try {
-                    await navigator.clipboard.writeText(promptText);
-                    const originalHtml = copyBtn.innerHTML;
-                    copyBtn.innerHTML = '<i data-lucide="check" style="color: var(--accent-primary);"></i>';
-                    if (window.lucide) lucide.createIcons();
-                    setTimeout(() => {
-                        copyBtn.innerHTML = originalHtml;
-                    }, 2000);
-                } catch (err) {
-                    console.error('Failed to copy text: ', err);
-                }
-            }
-        }
-    });
 
     // Modal Triggers
     if (loginBtn) loginBtn.addEventListener('click', () => openModal('login'));
@@ -1371,10 +1758,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Global Modal Delegation (100% working)
     document.addEventListener('click', (e) => {
-        if (e.target.closest('.modal-close') || e.target.closest('.close-modal')) {
-            closeModal();
-        }
-        if (e.target === modalOverlay) {
+        if (e.target.closest('.modal-close') || e.target.closest('.close-modal') || e.target === modalOverlay) {
             closeModal();
         }
     });
@@ -1388,4 +1772,66 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial session check
     checkUserSession();
+
+    // Marketplace Page: Check for category or search in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlCat = urlParams.get('category');
+    const urlSearch = urlParams.get('search');
+
+    if (urlCat || urlSearch) {
+        setTimeout(() => {
+            if (urlCat) {
+                const btn = document.querySelector(`.filter-btn[data-category="${urlCat}"]`);
+                if (btn) btn.click();
+            }
+            if (urlSearch) {
+                syncSearch(urlSearch);
+            }
+        }, 800);
+    }
 });
+
+function initCustomSelects() {
+    const selects = document.querySelectorAll('.custom-select');
+    
+    selects.forEach(select => {
+        const trigger = select.querySelector('.select-trigger');
+        const options = select.querySelectorAll('.select-option');
+        const hiddenInput = select.querySelector('input[type="hidden"]');
+        
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Close other selects
+            document.querySelectorAll('.custom-select').forEach(s => {
+                if (s !== select) s.classList.remove('active');
+            });
+            select.classList.toggle('active');
+        });
+        
+        options.forEach(option => {
+            option.addEventListener('click', () => {
+                const value = option.getAttribute('data-value');
+                const content = option.innerHTML;
+                
+                // Update UI
+                trigger.querySelector('span').innerHTML = content;
+                options.forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+                
+                // Update state
+                if (hiddenInput) {
+                    hiddenInput.value = value;
+                    // Trigger change event if needed for existing logic
+                    hiddenInput.dispatchEvent(new Event('change'));
+                }
+                
+                select.classList.remove('active');
+            });
+        });
+    });
+    
+    // Close on outside click
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.custom-select').forEach(s => s.classList.remove('active'));
+    });
+}
