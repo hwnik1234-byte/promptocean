@@ -410,7 +410,7 @@
 
                 const categoryId = document.getElementById('cp-category').value;
                 
-                // Force status to 'approved' for demo/test purposes as requested
+                // Set status to 'pending' for admin approval
                 const updateData = {
                     title: document.getElementById('cp-title').value,
                     category_id: categoryId,
@@ -418,7 +418,7 @@
                     content: document.getElementById('cp-content').value,
                     price: parseFloat(document.getElementById('cp-price').value || 0),
                     is_free: isFreeToggle.checked,
-                    status: 'approved' 
+                    status: 'pending' 
                 };
 
                 let error;

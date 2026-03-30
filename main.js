@@ -622,11 +622,11 @@ async function handlePromptUpload(e) {
         is_free: !isPremium, // 'is_free' is the logic
         price: parseFloat(price),
         is_public: true,
-        status: 'approved' // Auto-approve for now
+        status: 'pending' // Initial status is pending admin approval
     });
 
     if (error) alert('Error: ' + error.message);
-    else { alert('Listed successfully! 🚀'); closeModal(); renderPrompts(); }
+    else { alert('Prompt saved successfully! It is now pending approval by an admin.'); closeModal(); renderPrompts(); }
 }
 
 async function handleDemoUnlock(promptId) {
